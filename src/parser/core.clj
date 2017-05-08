@@ -13,11 +13,6 @@
   [str]
   (keyword (s/lower-case (s/replace str "_" "-"))))
 
-(defn slice
-  "Equivalent to l[s:e]"
-  [l s e]
-  (drop (inc s) (take (inc e) l)))
-
 (defn at
   "Equivalent to m[i][j]"
   [m i j]
@@ -25,6 +20,19 @@
 
 ;; Data types and type conversions
 (defrecord Section [x y d])
+
+(defn parse-comment
+  "Parse the comment and divide into three keys"
+  [comment]
+  (let [fields (map s/trim 
+                    (s/split (subs comment 1 (dec (count comment))) 
+                             #","))
+        author (first fields)
+        trucks (str->int (last (s/split (second fields) #" ")))
+        optimal (str->int (last (s/split (last fields) #" ")))]
+    (hash-map :author author
+              :no-of-trucks trucks
+              :optimal-value optimal)))
 
 (def conversions {:name identity
                   :comment parse-comment
@@ -46,7 +54,7 @@
         yd (- (:y s1) (:y s2))]
     (Math/round (Math/sqrt (+ (* xd xd) (* yd yd))))))
 
-(defn calc-dist
+(defn calc-dist-matrix
   "Calculate the distance between each section"
   [sections]
   (let [n (count sections)]
@@ -55,20 +63,9 @@
         (euc-distance ((keyword (str s1)) sections)
                       ((keyword (str s2)) sections))))))
 
-;; Parsing functions
-(defn parse-comment
-  "Parse the comment and divide into three keys"
-  [comment]
-  (let [fields (map s/trim 
-                    (s/split (subs comment 1 (dec (count comment))) 
-                             #","))
-        author (first fields)
-        trucks (str->int (last (s/split (second fields) #" ")))
-        optimal (str->int (last (s/split (last fields) #" ")))]
-    (hash-map :author author
-              :no-of-trucks trucks
-              :optimal-value optimal)))
+;;; Parsing functions
 
+;; Section parsing
 (defn new-section
   "Create a new section of form #{:n Section{x:, y:, d:}}"
   [[coord x y] [_ d]]
@@ -87,6 +84,38 @@
   [coords demands]
   (reduce into {} (map parse-section coords demands)))
 
+;; Matrix parsing
+(defn parse-lines-of-matrix
+  "Parse each line of the matrix"
+  [lines]
+  (map str->int (filter #(not (empty? %)) 
+                        (s/split (reduce str lines) #" "))))
+
+(defn create-inf-lines
+  "Separate each inferior lines of the matrix"
+  [lines n]
+  (let [create-line 
+        (fn [line curr i n]
+          (if (empty? curr) 
+            line
+            (recur (conj line (take i curr)) 
+                   (drop i curr) 
+                   (inc i) 
+                   n)))]
+    (create-line [] lines 1 n)))
+
+(defn create-weights-matrix
+  "Parse a file and create a weights matrix of size n x n"
+  [lines n]
+  (let [values (parse-lines-of-matrix lines)
+        inf-lines (create-inf-lines values n)]
+    (for [i (range n)]
+      (for [j (range n)]
+        (cond (> i j) (at inf-lines (dec i) j)
+              (< i j) (at inf-lines (dec j) i)
+              :else 0)))))
+
+;; Header parsing
 (defn break
   "Break the string into a pair of key and value"
   [str]
@@ -105,27 +134,52 @@
   (reduce into {} (map add-to-hashmap 
                        (map break (re-seq #"[A-Z_]+ : .*" file)))))
 
-(defn parse-body
-  "Parse body values based on header"
+;; Body parsing
+(defn parse-body-with-coords
+  "Parse euc-2d body values based on header"
   [header lines]
   (let [dim (:dimension header)
+        type (:edge-weight-type header)
         coords (.indexOf lines "NODE_COORD_SECTION ")
         demands (.indexOf lines "DEMAND_SECTION ")
-        depot (.indexOf lines "DEPOT_SECTION ")]
+        depot (.indexOf lines "DEPOT_SECTION ")
+        sections (parse-sections 
+                  (subvec lines (inc coords) (+ coords dim 1))
+                  (subvec lines (inc demands) (+ demands dim 1)))]
     (hash-map :sections 
-              (parse-sections (slice lines coords (+ coords dim))
-                              (slice lines demands (+ demands dim)))
+              sections
+              :depot
+              (str->keyword (s/trim (nth lines (inc depot))))
+              :distances
+              (calc-dist-matrix sections))))
+
+(defn parse-body-with-matrix
+  "Parse explicit distance values based on header"
+  [header lines]
+  (let [dim (:dimension header)
+        w (.indexOf lines "EDGE_WEIGHT_SECTION")
+        demands (.indexOf lines "DEMAND_SECTION")
+        depot (.indexOf lines "DEPOT_SECTION")]
+    (hash-map :distances
+              (create-weights-matrix (subvec lines (inc w) demands) 
+                                     dim)
               :depot
               (str->keyword (s/trim (nth lines (inc depot)))))))
 
+;; File parsing
 (defn parse-file
   "Parse the file and create a hash-map"
   [filename]
   (let [file (slurp filename)
         header (parse-header file)
-        body (parse-body header (s/split-lines file))
-        dist (calc-dist (:sections body))]
-    (into header (into body {:distances dist}))))
+        type (:edge-weight-type header)]
+    (cond (= type "EUC_2D")
+          (into header 
+                (parse-body-with-coords header (s/split-lines file)))
+          (= type "EXPLICIT")
+          (into header
+                (parse-body-with-matrix header (s/split-lines file)))
+          :else header)))
 
 (defn -main
   "I don't do a whole lot ... yet."
