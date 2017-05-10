@@ -19,7 +19,7 @@
   (nth (nth m i) j))
 
 ;; Data types and type conversions
-(defrecord Section [x y d])
+(defrecord Section [x y])
 
 (defn parse-comment
   "Parse the comment and divide into three keys"
@@ -68,21 +68,31 @@
 ;; Section parsing
 (defn new-section
   "Create a new section of form #{:n Section{x:, y:, d:}}"
-  [[coord x y] [_ d]]
+  [[coord x y]]
   (hash-map (keyword (str coord)) (Section. (str->int x) 
-                                            (str->int y) 
-                                            (str->int d))))
+                                            (str->int y))))
 
 (defn parse-section
   "Parse a line to a new section"
-  [coord demand]
-  (new-section (s/split (s/trim coord) #" ") 
-               (s/split (s/trim demand) #" ")))
+  [coord]
+  (new-section (s/split (s/trim coord) #" ")))
 
 (defn parse-sections
   "Parse each line and transform to a hash-map of Coords"
-  [coords demands]
-  (reduce into {} (map parse-section coords demands)))
+  [coords]
+  (reduce into (map parse-section coords)))
+
+;; Demands parsing
+(defn parse-demand
+  "Parse a line to a new demand"
+  [line]
+  (let [[section demand] (s/split (s/trim line) #" ")]
+    (hash-map (keyword section)(str->int demand))))
+
+(defn parse-demands
+  "Parse each line and create a hash-map of demands"
+  [lines]
+  (reduce into (map parse-demand lines)))
 
 ;; Matrix parsing
 (defn parse-lines-of-matrix
@@ -143,11 +153,15 @@
         coords (.indexOf lines "NODE_COORD_SECTION ")
         demands (.indexOf lines "DEMAND_SECTION ")
         depot (.indexOf lines "DEPOT_SECTION ")
-        sections (parse-sections 
-                  (subvec lines (inc coords) (+ coords dim 1))
-                  (subvec lines (inc demands) (+ demands dim 1)))]
+        sections (parse-sections (subvec lines 
+                                         (inc coords) 
+                                         (+ coords dim 1)))]
     (hash-map :sections 
               sections
+              :demands
+              (parse-demands (subvec lines 
+                                     (inc demands) 
+                                     (+ demands dim 1)))
               :depot
               (str->keyword (s/trim (nth lines (inc depot))))
               :distances
@@ -163,6 +177,10 @@
     (hash-map :distances
               (create-weights-matrix (subvec lines (inc w) demands) 
                                      dim)
+              :demands
+              (parse-demands (subvec lines 
+                                     (inc demands) 
+                                     (+ demands dim 1)))
               :depot
               (str->keyword (s/trim (nth lines (inc depot)))))))
 
