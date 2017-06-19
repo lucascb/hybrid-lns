@@ -1,6 +1,9 @@
-(ns parser.core
-  (:require [clojure.string :as s])
-  (:gen-class))
+(ns tcc.parser
+  (:require [clojure.string :as s]))
+
+(defn teste
+  [nome]
+  (str "Ola " nome "!"))
 
 ;; Utils
 (defn str->int

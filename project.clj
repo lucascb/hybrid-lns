@@ -4,7 +4,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"] 
-		 [net.mikera/vectorz-clj "0.46.0"]]
-  :main ^:skip-aot parser.core
+		 [uncomplicate/neanderthal "0.11.0"]]
+  :main ^:skip-aot tcc.vns.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

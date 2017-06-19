@@ -1,11 +1,13 @@
 (ns gels.core
+  (:require [parser.core :as p])
+  (:use [uncomplicate.neanderthal core native])
   (:gen-class))
 
-(use 'clojure.core.matrix)
-(use 'clojure.core.matrix.operators)
-(set-current-implementation :vectorz)
+(defn convert-matrix
+  "Convert a list of lists to a Neanderthal Matrix"
+  [m n]
+  (dge n n (reduce concat m)))
 
-(defn gels
-  "Implementation of Gravitational Emulation Local Search"
-  []
-  (matrix [[1 2] [3 4]]))
+(defn -main
+  [args &]
+  ("Hello World!"))
