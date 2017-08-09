@@ -1,4 +1,4 @@
-(ns tcc.parser
+(ns parser
   (:require [clojure.string :as s]))
 
 (defn teste
