@@ -37,6 +37,13 @@
   [cust]
   (= (int (sum cust)) (dec (dim cust))))
 
+(defn remove-customer
+  "Removes the customer c from a route k"
+  [k c]
+  (doseq [i (range (ncols k))]
+    (entry! k i c 0)
+    (entry! k c i 0)))
+
 ;; Generates the initial solution
 (defn generate-route
   "Generates a route x randomly from a list of available customers with distances d for a vehicle with capacity q"
@@ -66,14 +73,29 @@
 
 ;; Removal heuristic
 (defn cost-without-customer
-  "Removes the customer i from the route and recalculates the cost"
-  [route i]
-  ("oi"))
+  "Removes the customer c from the route and recalculates the cost"
+  [x c d]
+  (let [y (dge x)]
+    (doseq [i (range (mrows y))]
+      (entry! y i c 0)
+      (entry! y c i 0))
+    (println y)
+    (- (route-cost x d) (route-cost y d))))
+
+(defn routes-without-customers
+  "Generates routes without each customer and calculates its cost"
+  [x d]
+  (for [i (range 1 (mrows x))]
+    {:customer i :cost (cost-without-customer x i d)}))
 
 (defn worst-removal
   "Removes randomly the worst costumer in the tour"
-  []
-  ("oi"))
+  [x d p]
+  (let [l (sort-by :cost > (routes-without-customers x d))
+        y (rand)
+        r (nth l (int (Math/floor (* (Math/pow y p) (count l)))))]
+    ()
+    r))
 
 (defn -main
   "I don't do a whole lot ... yet."
