@@ -38,11 +38,11 @@
   (= (int (sum cust)) (dec (dim cust))))
 
 (defn remove-customer
-  "Removes the customer c from a route k"
-  [k c]
-  (doseq [i (range (ncols k))]
-    (entry! k i c 0)
-    (entry! k c i 0)))
+  "Removes the customer c from a route x"
+  [x c]
+  (doseq [i (range (ncols x))]
+    (entry! x i c 0)
+    (entry! x c i 0)))
 
 ;; Generates the initial solution
 (defn generate-route
@@ -94,8 +94,11 @@
   (let [l (sort-by :cost > (routes-without-customers x d))
         y (rand)
         r (nth l (int (Math/floor (* (Math/pow y p) (count l)))))]
-    ()
+    (remove-customer x r)
     r))
+
+;; Insertion heuristic
+(defn )
 
 (defn -main
   "I don't do a whole lot ... yet."
