@@ -98,7 +98,28 @@
     r))
 
 ;; Insertion heuristic
-(defn )
+(defn insert-at-best-pos
+  "Inserts the customer c into its best position in route x"
+  [x c]
+  (let [fst-best-pos 0
+        fst-best-cost 100000
+        sec-best-pos 0
+        sec-best-cost 100000]
+    (for [i (range (ncols x))]
+      (if (< (cost-at-pos x i c)
+             fst-best-pos)
+        (do (set! fst-best-pos i)))))
+
+  (defn first-best-route
+    "Returns the best route for customer c to be inserted in its best position"
+    [s c]
+    (for [i (range (count s))]
+      (insert-at-best-pos (nth s i) c))))
+
+(defn regret-2
+  "Reinserts the customers c into its best routes"
+  [c s]
+  ())
 
 (defn -main
   "I don't do a whole lot ... yet."
