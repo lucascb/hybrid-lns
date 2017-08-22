@@ -108,18 +108,35 @@
     (for [i (range (ncols x))]
       (if (< (cost-at-pos x i c)
              fst-best-pos)
-        (do (set! fst-best-pos i)))))
+        (:cost cost-at-pos :route (set! fst-best-pos i))))))
 
-  (defn first-best-route
-    "Returns the best route for customer c to be inserted in its best position"
-    [s c]
-    (for [i (range (count s))]
-      (insert-at-best-pos (nth s i) c))))
+(defn insert-at-best-routes
+  "Returns the routes and cost for customer c to be inserted in its best positions"
+  [s c]
+  (for [i (range (count s))]
+    (insert-at-best-pos (nth s i) c)))
+
+(defn calculate-regret
+  "Calculates the reinsertion of the customers rc into its best routes"
+  [rc s]
+  (for [cust rc] ; for each customer in the removed bank
+    (let [routes (sort-by :cost (insert-at-best-routes cust s))
+          first-best (first routes)
+          second-best (second routes)
+          delta (- second-best first-best)]
+      {:cust cust :delta delta :sol first-best})))
 
 (defn regret-2
-  "Reinserts the customers c into its best routes"
-  [c s]
-  ())
+  "Constructive heuristic to reinsert the customers removed from Worst Removal"
+  [rc s]
+  (if (empty? rc)
+    s
+    (let [regrets (map #(calculate-regret % s) rc)
+          max-regret (first (sort-by :delta > regrets))
+          chosen-cust (:cust max-regret)]
+      (add-to-solution chosen-cust (:route (:sol max-regret)) s)
+      (recur (remove #(= % chosen-cust) rc)
+             s))))
 
 (defn -main
   "I don't do a whole lot ... yet."
