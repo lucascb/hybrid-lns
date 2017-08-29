@@ -7,8 +7,10 @@
 ;; x -> route matrix
 ;; d -> distance matrix
 ;; q -> max capacity of a route
-(def vrp (read-string (slurp "A-n32-k5.txt")))
+;(def vrp (read-string (slurp "A-n32-k5.txt")))
+(def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
+(def dist (:distances vrp))
 
 ;; Test cases
 (def d (dge 3 3 [0 3 3 3 0 2 3 2 0] {:order :row}))
@@ -22,6 +24,11 @@
               (dot (row x i)
                    (row d i)))))
 
+(defn finished?
+  "True if there is any customer available, or false otherwise"
+  [cust]
+  (= (int (sum cust)) (dec (dim cust))))
+
 (defn choose-customer
   "Chooses randomly a customer and return it"
   [cust]
@@ -31,11 +38,6 @@
       (if (= (entry cust chosen-cust) 0.0)
         chosen-cust
         (recur cust)))))
-
-(defn finished?
-  "True if there is any customer available, or false otherwise"
-  [cust]
-  (= (int (sum cust)) (dec (dim cust))))
 
 (defn remove-customer
   "Removes the customer c from a route x"
@@ -98,13 +100,24 @@
     r))
 
 ;; Insertion heuristic
+(defn build-route
+  "Build the route and calculate its cost"
+  [route d]
+  (let [n (ncols d)
+        path (map vector route (rest route))
+        x (dge n n)
+        pos 0]
+    (entry! x 0 (first route) 1)
+    (doseq [[i, j] path :let [pos (inc pos)]]
+      (println pos)
+      (entry! x i j 1))
+    (entry! x (last route) 0 1)
+    {:tour x :cost (route-cost x d)}))
+
 (defn insert-at-best-pos
   "Inserts the customer c into its best position in route x"
-  [x c]
-  (let [fst-best-pos 0
-        fst-best-cost 100000
-        sec-best-pos 0
-        sec-best-cost 100000]
+  [x c d]
+  (let [fst-best nil sec-best nil]
     (for [i (range (ncols x))]
       (if (< (cost-at-pos x i c)
              fst-best-pos)
