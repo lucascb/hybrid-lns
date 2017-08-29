@@ -151,6 +151,15 @@
       (recur (remove #(= % chosen-cust) rc)
              s))))
 
+;; Ant Colony Optimization
+(def aco
+  "Perform an Ant Colony Optimization on a solutions to improve it"
+  [s d r1 r2 r3 fi]
+  (let [size (ncols s)
+        t (dge size size 1.0) ; Pheromones matrix
+        n (dge size size 0)]  ; Heuristic matrix
+    (for [])))
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
