@@ -105,23 +105,23 @@
   [route d]
   (let [n (ncols d)
         path (map vector route (rest route))
-        x (dge n n)
-        pos 0]
+        x (dge n n)]
     (entry! x 0 (first route) 1)
-    (doseq [[i, j] path :let [pos (inc pos)]]
-      (println pos)
+    (doseq [[i, j] path]
       (entry! x i j 1))
     (entry! x (last route) 0 1)
-    {:tour x :cost (route-cost x d)}))
+    {:tour x :cost (route-cost x d) :seq route}))
 
-(defn insert-at-best-pos
-  "Inserts the customer c into its best position in route x"
+(defn insert-at-pos
+  "Insert the customer c in the position i"
+  [x c i]
+  (concat (take i x) [c] (drop i x)))
+
+(defn insert-at-route
+  "Insert the customer c on each position of the route x"
   [x c d]
-  (let [fst-best nil sec-best nil]
-    (for [i (range (ncols x))]
-      (if (< (cost-at-pos x i c)
-             fst-best-pos)
-        (:cost cost-at-pos :route (set! fst-best-pos i))))))
+  (let [new-routes (for [i (range (inc (count x)))] (insert-at-pos x c i))]
+    (map #(build-route % d) new-routes)))
 
 (defn insert-at-best-routes
   "Returns the routes and cost for customer c to be inserted in its best positions"
