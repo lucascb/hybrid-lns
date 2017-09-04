@@ -3,6 +3,12 @@
   (:use [uncomplicate.neanderthal core native])
   (:gen-class))
 
+(defn to-neanderthal-matrix
+  [matrix]
+  (let [n (count matrix)
+        values (reduce concat matrix)]
+    (dge n n values {:order :row})))
+
 ;; Problem specs
 ;; x -> route matrix
 ;; d -> distance matrix
@@ -10,7 +16,7 @@
 ;(def vrp (read-string (slurp "A-n32-k5.txt")))
 (def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
-(def dist (:distances vrp))
+(def dist (to-neanderthal-matrix (:distances vrp)))
 
 ;; Test cases
 (def d (dge 3 3 [0 3 3 3 0 2 3 2 0] {:order :row}))
@@ -110,27 +116,27 @@
     (doseq [[i, j] path]
       (entry! x i j 1))
     (entry! x (last route) 0 1)
-    {:tour x :cost (route-cost x d) :seq route}))
+    {:matrix x :cost (route-cost x d) :tour route}))
 
 (defn insert-at-pos
-  "Insert the customer c in the position i"
+  "Insert the customer c in the position i of the route x"
   [x c i]
   (concat (take i x) [c] (drop i x)))
 
 (defn insert-at-route
-  "Insert the customer c on each position of the route x"
+  "Insert the customer c on each position of the route x and returns the best pos"
   [x c d]
   (let [new-routes (for [i (range (inc (count x)))] (insert-at-pos x c i))]
-    (map #(build-route % d) new-routes)))
+    (first (sort-by :cost (map #(build-route % d) new-routes)))))
 
-(defn insert-at-best-routes
-  "Returns the routes and cost for customer c to be inserted in its best positions"
-  [s c]
-  (for [i (range (count s))]
-    (insert-at-best-pos (nth s i) c)))
+(defn insert-at-best-route
+  "Inserts the customer c in the best possible route of the solution s"
+  [s c d]
+  (let [best-pos (for [x s] (insert-at-route x c d))]
+    (first (sort-by :cost best-pos))))
 
 (defn calculate-regret
-  "Calculates the reinsertion of the customers rc into its best routes"
+  "Calculates the reinsertion of the customers rc into its best routes of the solution s"
   [rc s]
   (for [cust rc] ; for each customer in the removed bank
     (let [routes (sort-by :cost (insert-at-best-routes cust s))
@@ -147,18 +153,18 @@
     (let [regrets (map #(calculate-regret % s) rc)
           max-regret (first (sort-by :delta > regrets))
           chosen-cust (:cust max-regret)]
-      (add-to-solution chosen-cust (:route (:sol max-regret)) s)
+      ;(add-to-solution chosen-cust (:route (:sol max-regret)) s)
       (recur (remove #(= % chosen-cust) rc)
              s))))
 
 ;; Ant Colony Optimization
-(def aco
+(defn aco
   "Perform an Ant Colony Optimization on a solutions to improve it"
   [s d r1 r2 r3 fi]
   (let [size (ncols s)
         t (dge size size 1.0) ; Pheromones matrix
         n (dge size size 0)]  ; Heuristic matrix
-    (for [])))
+  ))
 
 (defn -main
   "I don't do a whole lot ... yet."
