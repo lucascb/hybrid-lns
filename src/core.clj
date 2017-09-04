@@ -6,21 +6,25 @@
 (defn to-neanderthal-matrix
   [matrix]
   (let [n (count matrix)
-        values (reduce concat matrix)]
+        values (flatten matrix)]
     (dge n n values {:order :row})))
 
 ;; Problem specs
 ;; x -> route matrix
 ;; d -> distance matrix
 ;; q -> max capacity of a route
+;; c -> demands of each customer
 ;(def vrp (read-string (slurp "A-n32-k5.txt")))
 (def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
 (def dist (to-neanderthal-matrix (:distances vrp)))
+(def q (:capacity vrp))
+(def c (:demands vrp))
 
 ;; Test cases
 (def d (dge 3 3 [0 3 3 3 0 2 3 2 0] {:order :row}))
 (def r (dge 3 3 [0 1 0 0 0 1 1 0 0] {:order :row}))
+(def sol [[21 31 19 17 13 7 26] [12 1 16 30] [27 24] [29 18 8 9 22 15 10 25 5 20] [14 28 11 4 23 3 6]])
 
 ;; Utils
 (defn route-cost
@@ -106,6 +110,13 @@
     r))
 
 ;; Insertion heuristic
+(defn can-add?
+  "Checks if the customer i can be added to the route x
+  given q: max capacity of a vehicle and c: demands of customers"
+  [i x q c]
+  (let [i-demand (nth c i)]
+    (<= (+ i-demand (:cost x)) q)))
+
 (defn build-route
   "Build the route and calculate its cost"
   [route d]
@@ -119,31 +130,34 @@
     {:matrix x :cost (route-cost x d) :tour route}))
 
 (defn insert-at-pos
-  "Insert the customer c in the position i of the route x"
-  [x c i]
-  (concat (take i x) [c] (drop i x)))
+  "Insert the customer i in the position pos of the route x"
+  [x i pos]
+  (concat (take pos x) [i] (drop pos x)))
 
 (defn insert-at-route
-  "Insert the customer c on each position of the route x and returns the best pos"
-  [x c d]
-  (let [new-routes (for [i (range (inc (count x)))] (insert-at-pos x c i))]
+  "Insert the customer i on each position of the route x and returns the best pos
+  given d: distance matrix and x the sequence which represents the route"
+  [x i d]
+  (let [new-routes (for [pos (range (inc (count x)))]
+                     (insert-at-pos x i pos))]
+    (println (first new-routes))
     (first (sort-by :cost (map #(build-route % d) new-routes)))))
 
 (defn insert-at-best-route
-  "Inserts the customer c in the best possible route of the solution s"
-  [s c d]
-  (let [best-pos (for [x s] (insert-at-route x c d))]
-    (first (sort-by :cost best-pos))))
+  "Inserts the customer i in the first and second best possible route of the solution s, given d: distance matrix, q: max capacity of a vehicle, c: demands of customers"
+  [s i d q c]
+  (let [best-pos (for [x s :when (can-add? i x q c)]
+                   (insert-at-route (:tour x) i d))
+        best-routes (sort-by :cost best-pos)]
+    [(first best-routes) (second best-routes)]))
 
 (defn calculate-regret
   "Calculates the reinsertion of the customers rc into its best routes of the solution s"
-  [rc s]
-  (for [cust rc] ; for each customer in the removed bank
-    (let [routes (sort-by :cost (insert-at-best-routes cust s))
-          first-best (first routes)
-          second-best (second routes)
-          delta (- second-best first-best)]
-      {:cust cust :delta delta :sol first-best})))
+  [rc s d q c]
+  (for [i rc] ; for each customer in the removed bank
+    (let [[first-best second-best] (insert-at-best-route s i d q c)
+          delta (- (:cost second-best) (:cost first-best))]
+      {:customer i :delta delta :sol first-best})))
 
 (defn regret-2
   "Constructive heuristic to reinsert the customers removed from Worst Removal"

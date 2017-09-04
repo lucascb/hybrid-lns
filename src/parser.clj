@@ -90,12 +90,14 @@
   "Parse a line to a new demand"
   [line]
   (let [[section demand] (s/split (s/trim line) #" ")]
-    (hash-map (keyword section)(str->int demand))))
+       ;(hash-map (keyword section)(str->int demand))
+    (str->int demand)))
 
 (defn parse-demands
   "Parse each line and create a hash-map of demands"
   [lines]
-  (reduce into (map parse-demand lines)))
+  ;(reduce into (map parse-demand lines))
+  (map parse-demand lines))
 
 ;; Matrix parsing
 (defn parse-lines-of-matrix
