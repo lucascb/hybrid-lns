@@ -17,13 +17,18 @@
 ;(def vrp (read-string (slurp "A-n32-k5.txt")))
 (def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
-(def dist (to-neanderthal-matrix (:distances vrp)))
+(def d (to-neanderthal-matrix (:distances vrp)))
 (def q (:capacity vrp))
 (def c (:demands vrp))
 
 ;; Test cases
-(def d (dge 3 3 [0 3 3 3 0 2 3 2 0] {:order :row}))
-(def r (dge 3 3 [0 1 0 0 0 1 1 0 0] {:order :row}))
+(def z1 (build-route [21 31 19 17 13 7 26] d))
+(def z2 (build-route [12 16 30] d))
+(def z3 (build-route [27 24] d))
+(def z4 (build-route [29 18 8 9 22 15 10 25 5 20] d))
+(def z5 (build-route [14 28 11 23 3 6] d))
+(def s [z1 z2 z3 z4 z5])
+
 (def sol [[21 31 19 17 13 7 26] [12 1 16 30] [27 24] [29 18 8 9 22 15 10 25 5 20] [14 28 11 4 23 3 6]])
 
 ;; Utils
@@ -151,25 +156,33 @@
         best-routes (sort-by :cost best-pos)]
     [(first best-routes) (second best-routes)]))
 
-(defn calculate-regret
-  "Calculates the reinsertion of the customers rc into its best routes of the solution s"
+(defn calculate-regrets
+  "Calculates the reinsertion of each customers from the removed bank rc into its best routes of the solution s, given d: dist matrix, q: max capacity of a vehicle, c: demands of each customer"
   [rc s d q c]
   (for [i rc] ; for each customer in the removed bank
     (let [[first-best second-best] (insert-at-best-route s i d q c)
           delta (- (:cost second-best) (:cost first-best))]
-      {:customer i :delta delta :sol first-best})))
+      {:customer i :delta delta :route first-best})))
+
+(defn add-to-solution
+  "Adds the new route nx with the inserted customer ni to the solution s"
+  [s ni nx]
+  (let [old-x (remove #(= % ni) (:tour nx))]
+    (println (keys nx))
+    (cons nx (remove #(= (:tour %) old-x) s))))
 
 (defn regret-2
   "Constructive heuristic to reinsert the customers removed from Worst Removal"
-  [rc s]
-  (if (empty? rc)
-    s
-    (let [regrets (map #(calculate-regret % s) rc)
-          max-regret (first (sort-by :delta > regrets))
-          chosen-cust (:cust max-regret)]
-      ;(add-to-solution chosen-cust (:route (:sol max-regret)) s)
-      (recur (remove #(= % chosen-cust) rc)
-             s))))
+  [rc s d q c]
+  (if (empty? rc) s
+      (let [regrets (calculate-regrets rc s d q c)
+            max-regret (first (sort-by :delta > regrets))
+            chosen-cust (:customer max-regret)
+            chosen-route (:route max-regret)]
+        (println chosen-cust)
+        (recur (remove #(= % chosen-cust) rc)
+               (add-to-solution s chosen-cust chosen-route)
+               d q c))))
 
 ;; Ant Colony Optimization
 (defn aco
@@ -178,7 +191,7 @@
   (let [size (ncols s)
         t (dge size size 1.0) ; Pheromones matrix
         n (dge size size 0)]  ; Heuristic matrix
-  ))
+    ))
 
 (defn -main
   "I don't do a whole lot ... yet."
