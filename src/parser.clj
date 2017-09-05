@@ -1,9 +1,14 @@
 (ns parser
-  (:require [clojure.string :as s]))
+  (:require [clojure.string :as s])
+  (:use [uncomplicate.neanderthal core native]))
 
-(defn teste
-  [nome]
-  (str "Ola " nome "!"))
+;; Neanderthal conversions
+(defn to-neanderthal-matrix
+  "Converts a Clojure list of lists to a neanderthal matrix"
+  [matrix]
+  (let [n (count matrix)
+        values (flatten matrix)]
+    (dge n n values {:order :row})))
 
 ;; Utils
 (defn str->int
@@ -27,8 +32,8 @@
 (defn parse-comment
   "Parse the comment and divide into three keys"
   [comment]
-  (let [fields (map s/trim 
-                    (s/split (subs comment 1 (dec (count comment))) 
+  (let [fields (map s/trim
+                    (s/split (subs comment 1 (dec (count comment)))
                              #","))
         author (first fields)
         trucks (str->int (last (s/split (second fields) #" ")))
@@ -109,13 +114,13 @@
 (defn create-inf-lines
   "Separate each inferior lines of the matrix"
   [lines n]
-  (let [create-line 
+  (let [create-line
         (fn [line curr i n]
-          (if (empty? curr) 
+          (if (empty? curr)
             line
-            (recur (conj line (take i curr)) 
-                   (drop i curr) 
-                   (inc i) 
+            (recur (conj line (take i curr))
+                   (drop i curr)
+                   (inc i)
                    n)))]
     (create-line [] lines 1 n)))
 
@@ -140,13 +145,13 @@
   "Parse a line and add it to the hashmap"
   [[k v]]
   (let [key (str->keyword k)]
-       (hash-map key 
+       (hash-map key
                  (convert key v))))
 
 (defn parse-header
   "Parse header values from the file"
   [file]
-  (reduce into {} (map add-to-hashmap 
+  (reduce into {} (map add-to-hashmap
                        (map break (re-seq #"[A-Z_]+ : .*" file)))))
 
 ;; Body parsing
@@ -158,14 +163,14 @@
         coords (.indexOf lines "NODE_COORD_SECTION ")
         demands (.indexOf lines "DEMAND_SECTION ")
         depot (.indexOf lines "DEPOT_SECTION ")
-        sections (parse-sections (subvec lines 
-                                         (inc coords) 
+        sections (parse-sections (subvec lines
+                                         (inc coords)
                                          (+ coords dim 1)))]
-    (hash-map :sections 
+    (hash-map :sections
               sections
               :demands
-              (parse-demands (subvec lines 
-                                     (inc demands) 
+              (parse-demands (subvec lines
+                                     (inc demands)
                                      (+ demands dim 1)))
               :depot
               (str->keyword (s/trim (nth lines (inc depot))))
@@ -180,11 +185,11 @@
         demands (.indexOf lines "DEMAND_SECTION")
         depot (.indexOf lines "DEPOT_SECTION")]
     (hash-map :distances
-              (create-weights-matrix (subvec lines (inc w) demands) 
+              (create-weights-matrix (subvec lines (inc w) demands)
                                      dim)
               :demands
-              (parse-demands (subvec lines 
-                                     (inc demands) 
+              (parse-demands (subvec lines
+                                     (inc demands)
                                      (+ demands dim 1)))
               :depot
               (str->keyword (s/trim (nth lines (inc depot)))))))
@@ -197,7 +202,7 @@
         header (parse-header file)
         type (:edge-weight-type header)]
     (cond (= type "EUC_2D")
-          (into header 
+          (into header
                 (parse-body-with-coords header (s/split-lines file)))
           (= type "EXPLICIT")
           (into header

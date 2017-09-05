@@ -3,12 +3,6 @@
   (:use [uncomplicate.neanderthal core native])
   (:gen-class))
 
-(defn to-neanderthal-matrix
-  [matrix]
-  (let [n (count matrix)
-        values (flatten matrix)]
-    (dge n n values {:order :row})))
-
 ;; Problem specs
 ;; x -> route matrix
 ;; d -> distance matrix
@@ -17,7 +11,7 @@
 ;(def vrp (read-string (slurp "A-n32-k5.txt")))
 (def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
-(def d (to-neanderthal-matrix (:distances vrp)))
+(def d (p/to-neanderthal-matrix (:distances vrp)))
 (def q (:capacity vrp))
 (def c (:demands vrp))
 
@@ -185,13 +179,82 @@
                d q c))))
 
 ;; Ant Colony Optimization
+(defn build-heuristic-matrix
+  "Build the heuristic matrix using the formula Sij = Di0 + D0j - Dij"
+  [d]
+  (let [n (ncols d)
+        s (dge n n)]
+    (doseq [i (range 1 n)]
+      (doseq [j (range 1 n)]
+        (if (= i j)
+          (entry! s i j 0)
+          (entry! s i j (+ (entry d i 0)
+                           (- (entry d 0 j)
+                              (entry d i j)))))))
+    s))
+
+(defn exploitation
+  "Defines the next customer based on exploitation, given a: available customers, i: last customer added, t: the pheromone trail matrix, n: heuristic matrix, alpha and beta algorithm parameters"
+  [a i t n alpha beta]
+  (let [exps (for [j a] {(keyword (str j)) (* (Math/pow (entry t i j) alpha)
+                                              (Math/pow (entry n i j) beta))})]
+    (key (apply max-key val exps))))
+
+(defn build-probabilities
+  "Builds the probabilities of each possible customer to be inserted"
+  [a i t n alpha beta]
+  (let [x (reduce + (for [j a] (* (Math/pow (entry t i j) alpha)
+                                  (Math/pow (entry n i j) beta))))
+        probs (for [j a] {(keyword (str j)) (/ (* (Math/pow (entry t i j) alpha)
+                                                  (Math/pow (entry n i j) beta))
+                                               x)})]
+    (reduce into probs)))
+
+(defn build-roullette
+  "Build a roullette based on the probabilities of each customer"
+  [probs r acc]
+  (if (empty? probs)
+    [r acc]
+    (let [[cust prob] (first probs)
+          p (+ acc prob)]
+      (recur (rest probs)
+             (conj r {cust p})
+             p))))
+
+(defn spin-roullette
+  "Spin the roullette and chooses the next customer"
+  [r drawn-num]
+  (if (> (vals (second r)) drawn-num)
+    (first r)
+    (recur (rest r) drawn-num)))
+
+(defn biased-exploration
+  "Defines the next customer based on biased exploration, given a: available customers, "
+  [a i t n alpha beta]
+  (let [probs (build-probabilities a i t n alpha beta)
+        [roullette max-prob] (build-roullette probs [] 0)
+        p (rand max-prob)
+        j (spin-roullette roullette p)])
+  j)
+
+(defn random-selection
+  "Defines the next customer randomly"
+  [a]
+  (rand-nth a))
+
 (defn aco
   "Perform an Ant Colony Optimization on a solutions to improve it"
-  [s d r1 r2 r3 fi]
+  [s a i d r1 r2 r3 fi alpha beta]
   (let [size (ncols s)
-        t (dge size size 1.0) ; Pheromones matrix
-        n (dge size size 0)]  ; Heuristic matrix
-    ))
+        t (dge size size 1.0) ; Pheromones trail matrix
+        n (build-heuristic-matrix d) ; Heuristic matrix
+        r (rand)]
+    (cond (<= r r1)
+          (exploitation a i t n alpha beta)
+          (and (< r1 r) (<= r r2))
+          (biased-exploration a i tn alpha beta)
+          (and (<= r2 r) (<= r r3))
+          (random-selection a))))
 
 (defn -main
   "I don't do a whole lot ... yet."
