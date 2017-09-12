@@ -15,16 +15,6 @@
 (def q (:capacity vrp))
 (def c (:demands vrp))
 
-;; Test cases
-(def z1 (build-route [21 31 19 17 13 7 26] d))
-(def z2 (build-route [12 16 30] d))
-(def z3 (build-route [27 24] d))
-(def z4 (build-route [29 18 8 9 22 15 10 25 5 20] d))
-(def z5 (build-route [14 28 11 23 3 6] d))
-(def s [z1 z2 z3 z4 z5])
-
-(def sol [[21 31 19 17 13 7 26] [12 1 16 30] [27 24] [29 18 8 9 22 15 10 25 5 20] [14 28 11 4 23 3 6]])
-
 ;; Utils
 (defn route-cost
   "Returns the cost of the route x"
@@ -62,7 +52,7 @@
   (if (finished? cust)
     (entry! x last 0 1)
     (let [chosen-cust (choose-customer cust)]
-      (println last chosen-cust)
+      ;(println last chosen-cust)
       (if (> (+ (route-cost x d)
                 (entry d last chosen-cust)
                 (entry d chosen-cust 0))
@@ -101,7 +91,7 @@
 
 (defn worst-removal
   "Removes randomly the worst costumer in the tour"
-  [x d p]
+  [x q d p]
   (let [l (sort-by :cost > (routes-without-customers x d))
         y (rand)
         r (nth l (int (Math/floor (* (Math/pow y p) (count l)))))]
@@ -139,15 +129,16 @@
   [x i d]
   (let [new-routes (for [pos (range (inc (count x)))]
                      (insert-at-pos x i pos))]
-    (println (first new-routes))
+    ;(println (first new-routes))
     (first (sort-by :cost (map #(build-route % d) new-routes)))))
 
 (defn insert-at-best-route
   "Inserts the customer i in the first and second best possible route of the solution s, given d: distance matrix, q: max capacity of a vehicle, c: demands of customers"
   [s i d q c]
-  (let [best-pos (for [x s :when (can-add? i x q c)]
+  (let [best-pos (for [x s] ;:when (can-add? i x q c)
                    (insert-at-route (:tour x) i d))
         best-routes (sort-by :cost best-pos)]
+    (println "Routes with the customer: " i (map :tour best-routes) (map :cost best-routes))
     [(first best-routes) (second best-routes)]))
 
 (defn calculate-regrets
@@ -162,7 +153,7 @@
   "Adds the new route nx with the inserted customer ni to the solution s"
   [s ni nx]
   (let [old-x (remove #(= % ni) (:tour nx))]
-    (println (keys nx))
+    ;(println (keys nx))
     (cons nx (remove #(= (:tour %) old-x) s))))
 
 (defn regret-2
@@ -173,7 +164,7 @@
             max-regret (first (sort-by :delta > regrets))
             chosen-cust (:customer max-regret)
             chosen-route (:route max-regret)]
-        (println chosen-cust)
+        (println "The customer " chosen-cust " is being inserted on the route " (:tour chosen-route))
         (recur (remove #(= % chosen-cust) rc)
                (add-to-solution s chosen-cust chosen-route)
                d q c))))
@@ -234,27 +225,90 @@
   (let [probs (build-probabilities a i t n alpha beta)
         [roullette max-prob] (build-roullette probs [] 0)
         p (rand max-prob)
-        j (spin-roullette roullette p)])
-  j)
+        j (spin-roullette roullette p)]
+    j))
 
 (defn random-selection
   "Defines the next customer randomly"
   [a]
   (rand-nth a))
 
-(defn aco
+(defn last-customer
+  "Returns the last customer of a route"
+  [x]
+  (let [tour (:tour x)]
+    (if (empty? tour) 0 (last tour))))
+
+(defn add-to-route
+  "Add costumer i to route x"
+  [x i d]
+  (let [l (last-customer x)]
+    {:matrix (entry! (:matrix x) l i 1)
+     :tour (conj (:tour x) i)
+     :cost (+ (:cost x) (entry d l i))}))
+
+(defn add-next-customer
   "Perform an Ant Colony Optimization on a solutions to improve it"
-  [s a i d r1 r2 r3 fi alpha beta]
-  (let [size (ncols s)
-        t (dge size size 1.0) ; Pheromones trail matrix
-        n (build-heuristic-matrix d) ; Heuristic matrix
-        r (rand)]
-    (cond (<= r r1)
-          (exploitation a i t n alpha beta)
-          (and (< r1 r) (<= r r2))
-          (biased-exploration a i tn alpha beta)
-          (and (<= r2 r) (<= r r3))
-          (random-selection a))))
+  [x a d t n r1 r2 r3 alpha beta]
+  (if (empty? a)
+    x
+    (let [size (ncols (:matrix x))
+          i (last-customer x) ; Last customer added to the route
+          r (rand)
+          j (cond (<= r r1)
+                  (exploitation a i t n alpha beta)
+                  (and (< r1 r) (<= r r2))
+                  (biased-exploration a i t n alpha beta)
+                  (and (<= r2 r) (<= r r3))
+                  (random-selection a))]
+      (add-to-route x j d))))
+
+(defn aco
+  "Perform an Ant Colony Optimization and returns "
+  [old-s a d fi r1 r2 r3 alpha beta]
+  (if (some #(> (count (:tour %)) fi) old-s)
+    (let [size (ncols (first old-s))
+          new-s (for [x old-s] (dge size size))]
+      (println "--- Restarting ACO ---")
+      (recur new-s (range 1 size) d fi r1 r2 r3 alpha beta))
+    (let [k (count old-s) ; Number of routes of a solution
+          size (ncols (first old-s))
+          t (dge size size 1.0) ; Pheromones trail matrix
+          n (build-heuristic-matrix d) ; Heuristic matrix
+          new-s (for [x old-s] (add-next-customer x a d t n r1 r2 r3 alpha beta))]
+      (println (map :tour new-s))
+      (recur new-s a d fi r1 r2 r3 alpha beta))))
+
+;; Large Neighborhood Search
+(defn objec-func
+  "Returns the objetive value of a solution s"
+  [s]
+  (reduce + (map :cost s)))
+
+(defn lns
+  "Perfoms a Large Neighborhood Search on the solution s"
+  [s best-s q p fi r1 r2 r3 alpha beta dist cap dem]
+  (let [removed-bank (worst-removal s q dist p) ; Remove q customer from the solution
+        new-s (regret-2 removed-bank s dist cap dem) ; Reinserts these customers
+        size (ncols (:matrix (first s)))]
+    (if (< (objec-func new-s) (objec-func s))
+      (if (< (objec-func new-s) (objec-func best-s))
+        (recur new-s new-s q p fi r1 r2 r3 alpha beta dist cap dem)
+        (recur new-s best-s q p fi r1 r2 r3 alpha beta dist cap dem))
+      (let [new-s (aco best-s (range 1 size) dist fi r1 r2 r3 alpha beta)]
+        (if (< (objec-func new-s) (objec-func best-s))
+          (recur new-s new-s q p fi r1 r2 r3 alpha beta dist cap dem)
+          (recur new-s best-s q p fi r1 r2 r3 alpha beta dist cap dem))))))
+
+;; Test cases
+(def z1 (build-route [21 31 19 17 13 7 26] d))
+(def z2 (build-route [12 16 30] d))
+(def z3 (build-route [27 24] d))
+(def z4 (build-route [29 18 8 9 22 15 10 25 5 20] d))
+(def z5 (build-route [14 28 11 23 3 6] d))
+(def s [z1 z2 z3 z4 z5])
+
+(def sol [[21 31 19 17 13 7 26] [12 1 16 30] [27 24] [29 18 8 9 22 15 10 25 5 20] [14 28 11 4 23 3 6]])
 
 (defn -main
   "I don't do a whole lot ... yet."
