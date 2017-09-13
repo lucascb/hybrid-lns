@@ -38,12 +38,17 @@
         chosen-cust
         (recur cust)))))
 
-(defn remove-customer
-  "Removes the customer c from a route x"
-  [x c]
-  (doseq [i (range (ncols x))]
-    (entry! x i c 0)
-    (entry! x c i 0)))
+(defn build-route
+  "Build the route and calculate its cost"
+  [route d]
+  (let [n (ncols d)
+        path (map vector route (rest route))
+        x (dge n n)]
+    (entry! x 0 (first route) 1)
+    (doseq [[i, j] path]
+      (entry! x i j 1))
+    (entry! x (last route) 0 1)
+    {:matrix x :cost (route-cost x d) :tour route}))
 
 ;; Generates the initial solution
 (defn generate-route
@@ -73,30 +78,35 @@
       (generate-route cust 0 (dge n n) d q))))
 
 ;; Removal heuristic
-(defn cost-without-customer
-  "Removes the customer c from the route and recalculates the cost"
-  [x c d]
-  (let [y (dge x)]
-    (doseq [i (range (mrows y))]
-      (entry! y i c 0)
-      (entry! y c i 0))
-    (println y)
-    (- (route-cost x d) (route-cost y d))))
+(defn remove-customer
+  "Removes the customer i from the route x"
+  [x i d]
+  (let [nx (remove #(= % i) (:tour x))]
+    (build-route nx d)))
 
 (defn routes-without-customers
   "Generates routes without each customer and calculates its cost"
-  [x d]
-  (for [i (range 1 (mrows x))]
-    {:customer i :cost (cost-without-customer x i d)}))
+  [s d]
+  (for [x s]
+    (for [i (:tour x)]
+      (let [r (remove-customer x i d)]
+        {:customer i :delta-cost (- (:cost x) (:cost r)) :route r}))))
 
 (defn worst-removal
-  "Removes randomly the worst costumer in the tour"
-  [x q d p]
-  (let [l (sort-by :cost > (routes-without-customers x d))
-        y (rand)
-        r (nth l (int (Math/floor (* (Math/pow y p) (count l)))))]
-    (remove-customer x r)
-    r))
+  "Removes randomly q worst costumers in the solution s"
+  [s rb q d p]
+  (if (= q 0)
+    [s rb]
+    (let [l (sort-by :delta-cost > (routes-without-customers s d))
+          y (rand)
+          rc (nth l (int (Math/floor (* (Math/pow y p)
+                                        (count l))))) ; Chosen customer to remove
+          r (:route rc)]
+      (recur (conj (remove #(= (:tour %) (:tour r)) s) r)
+             (conj rb (:customer rc))
+             (dec q)
+             d
+             p))))
 
 ;; Insertion heuristic
 (defn can-add?
@@ -105,18 +115,6 @@
   [i x q c]
   (let [i-demand (nth c i)]
     (<= (+ i-demand (:cost x)) q)))
-
-(defn build-route
-  "Build the route and calculate its cost"
-  [route d]
-  (let [n (ncols d)
-        path (map vector route (rest route))
-        x (dge n n)]
-    (entry! x 0 (first route) 1)
-    (doseq [[i, j] path]
-      (entry! x i j 1))
-    (entry! x (last route) 0 1)
-    {:matrix x :cost (route-cost x d) :tour route}))
 
 (defn insert-at-pos
   "Insert the customer i in the position pos of the route x"
