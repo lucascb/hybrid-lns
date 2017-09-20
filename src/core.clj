@@ -52,30 +52,24 @@
 
 ;; Generates the initial solution
 (defn generate-route
-  "Generates a route x randomly from a list of available customers with distances d for a vehicle with capacity q"
-  [cust last x d q]
-  (if (finished? cust)
-    (entry! x last 0 1)
-    (let [chosen-cust (choose-customer cust)]
-      ;(println last chosen-cust)
-      (if (> (+ (route-cost x d)
-                (entry d last chosen-cust)
-                (entry d chosen-cust 0))
-             q)
-        (entry! x last 0 1)
-        (recur (entry! cust chosen-cust 1)
-               chosen-cust
-               (entry! x last chosen-cust 1)
-               d
-               q)))))
+  "Genereates a route x ramdomly from a list of available customers until the capacity is constrained"
+  [cust route dem d q c]
+  (if (empty? cust)
+    (build-route route d)
+    (let [chosen-cust (rand-nth cust)
+          cust-dem (entry c chosen-cust)
+          new-dem (+ dem cust-dem)]
+      (if (> new-dem q)
+        (build-route route d)
+        (recur (remove #(= % chosen-cust) cust)
+               (conj route chosen-cust)
+               new-dem
+               d q c)))))
 
 (defn generate-initial-solution
   "Generates randomly a initial feasible solution with k routes"
   [k d q]
-  (let [n (ncols d)
-        cust (dv n)]
-    (for [i (range k)]
-      (generate-route cust 0 (dge n n) d q))))
+  ())
 
 ;; Removal heuristic
 (defn remove-customer
