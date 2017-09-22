@@ -81,22 +81,28 @@
 (defn routes-without-customers
   "Generates routes without each customer and calculates its cost"
   [s d]
-  (for [x s]
-    (for [i (:tour x)]
-      (let [r (remove-customer x i d)]
-        {:customer i :delta-cost (- (:cost x) (:cost r)) :route r}))))
+  (flatten (for [x s]
+             (for [i (:tour x)]
+               (let [r (remove-customer x i d)]
+                 {:customer i
+                  :delta-cost (- (:cost x) (:cost r))
+                  :route r
+                  :old-tour (:tour x)})))))
+
+(defn update-solution
+  "Update the solution s to remove the customer chosen in worst-removal"
+  [s rc]
+  (conj (remove #(= (:tour %) (:old-tour rc)) s) (:route rc)))
 
 (defn worst-removal
   "Removes randomly q worst costumers in the solution s"
   [s rb q d p]
-  (if (= q 0)
-    [s rb]
+  (if (= q 0) ; Returns the new solution (s) alongside with the
+    [s rb]    ; customers removed in the removed bank (rb)
     (let [l (sort-by :delta-cost > (routes-without-customers s d))
           y (rand)
-          rc (nth l (int (Math/floor (* (Math/pow y p)
-                                        (count l))))) ; Chosen customer to remove
-          r (:route rc)]
-      (recur (conj (remove #(= (:tour %) (:tour r)) s) r)
+          rc (nth l (int (* (Math/pow y p) (count l))))] ; Chosen customer to remove
+      (recur (update-solution s rc)
              (conj rb (:customer rc))
              (dec q)
              d
