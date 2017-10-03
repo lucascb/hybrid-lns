@@ -1,8 +1,8 @@
-(ns teste.core
-  (:gen-class))
+(ns vns
+  (:require [parser :as p]))
 
 ;; Problem specs
-(def vrp (read-string (slurp "A-n32-k5.txt")))
+(def vrp (p/parse-file "A-n32-k5.vrp"))
 (def customers (range 2 (:dimension vrp)))
 
 ;; Utils
@@ -36,7 +36,7 @@
 (defn calculate-load
   "Calculates the total load of a tour"
   [tour]
-  (reduce + (map demand tour))
+  (reduce + (map demand tour)))
 
 (defn new-solution
   "Returns a solution given its attributes"
@@ -82,4 +82,3 @@
   "I don't do a whole lot ... yet."
   [& args]
   (println "Hello, World!"))
-  
