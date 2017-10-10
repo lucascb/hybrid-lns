@@ -1,7 +1,6 @@
 (ns gels.core
-  (:require [parser.core :as p])
-  (:use [uncomplicate.neanderthal core native])
-  (:gen-class))
+  (:require [parser :as p])
+  (:use [uncomplicate.neanderthal core native]))
 
 ;; Constants
 (def G 6.672)

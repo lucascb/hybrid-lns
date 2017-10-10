@@ -43,6 +43,14 @@
   [r n c]
   {:routes r :no-of-trucks n :cost c})
 
+(defn rand-different
+  "Generate a random number different than x"
+  [n x]
+  (let [r (rand-int n)]
+    (if (not= r x)
+      r
+      (recur n x))))
+
 ;; Generates the initial solution
 (defn load-truck
   "Loads randomly a truck"
@@ -77,6 +85,32 @@
     (new-solution routes
                   (count routes)
                   (reduce + costs))))
+
+(defn neighborhood-1
+  "Inserts a sequence of customers, with respect to their order, within the same tour or between two different tours"
+  [s]
+  (let [n-sol (count s)
+        x1 (nth (rand-int n-sol) s)
+        x2 (nth (rand-different n-sol x1) s)
+        n-x1 (rand-int (count x1))
+        n-x2 (rand-int (count x2))]
+    (if (< (count x1) (count x2))
+      (conj (take (/ n 2) x1) (take (/ n 2) x2)))))
+
+(defn neighborhood-2
+  "Inserts a sequence of customers, with reverse order, within the same tour or between two different tours"
+  [s]
+  ())
+
+(defn neighborhood-3
+  "Swaps two customers within the same tour or between two different tours"
+  []
+  ())
+
+(defn neighborhood-4
+  "Swaps two sequences of customers within the same tour or between two diferrent tours"
+  []
+  ())
 
 (defn -main
   "I don't do a whole lot ... yet."
