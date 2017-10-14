@@ -1,18 +1,10 @@
-(ns lns-aco
+(ns hybrid-lns
   (:require [parser :as p])
   (:use [uncomplicate.neanderthal core native]))
 
-;; Problem specs
-;; x -> route matrix
-;; d -> distance matrix
-;; q -> max capacity of a route
-;; c -> demands of each customer
-;(def vrp (read-string (slurp "A-n32-k5.txt")))
-(def vrp (p/parse-file "A-n32-k5.vrp"))
-(def customers (range 2 (:dimension vrp)))
-(def d (p/to-neanderthal-matrix (:distances vrp)))
-(def q (:capacity vrp))
-(def c (:demands vrp))
+;; Data structures
+; A route consists in its matrix representation
+(defstruct route :matrix :cost :tour)
 
 ;; Utils
 (defn route-cost
@@ -47,13 +39,13 @@
     (doseq [[i, j] path]
       (entry! x i j 1))
     (entry! x (last route) 0 1)
-    {:matrix x :cost (route-cost x d) :tour route}))
+    (struct route :matrix x :cost (route-cost x d) :tour route)))
 
 (defn empty-route
   "Returns an empty route"
   [d]
   (let [n (ncols d)]
-    {:matrix (dge n n) :cost 0 :tour []}))
+    (struct route :matrix (dge n n) :cost 0 :tour [])))
 
 ;; Generates the initial solution
 (defn generate-route
