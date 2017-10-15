@@ -1,7 +1,6 @@
 (ns core
   (:require [parser :as p]
-            [lns-aco :as lns]
-            [vns])
+            [hybrid-lns :as lns])
   (:gen-class))
 
 ;; Problem specs
@@ -37,4 +36,3 @@
   "Test"
   [args &]
   "Hello world!")
-

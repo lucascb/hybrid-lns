@@ -31,21 +31,21 @@
 
 (defn build-route
   "Build the route and calculate its cost"
-  [route d]
+  [r d]
   (let [n (ncols d)
-        path (map vector route (rest route))
+        path (map vector r (rest r))
         x (dge n n)]
-    (entry! x 0 (first route) 1)
+    (entry! x 0 (first r) 1)
     (doseq [[i, j] path]
       (entry! x i j 1))
-    (entry! x (last route) 0 1)
-    (struct route :matrix x :cost (route-cost x d) :tour route)))
+    (entry! x (last r) 0 1)
+    (struct-map route :matrix x :cost (route-cost x d) :tour r)))
 
 (defn empty-route
   "Returns an empty route"
   [d]
   (let [n (ncols d)]
-    (struct route :matrix (dge n n) :cost 0 :tour [])))
+    (struct-map route :matrix (dge n n) :cost 0 :tour [])))
 
 ;; Generates the initial solution
 (defn generate-route
@@ -180,7 +180,7 @@
     s))
 
 (defn build-pheromone-matrix
-  "Build the pheromone trail matrix"
+  "Build the initial pheromone trail matrix"
   [size]
   (let [t (dge size size)]
     (doseq [i (range size)]
@@ -259,9 +259,10 @@
   "Add costumer i to route x"
   [x i d]
   (let [l (last-customer x)]
-    {:matrix (entry! (:matrix x) l i 1)
-     :tour (conj (:tour x) i)
-     :cost (+ (:cost x) (entry d l i))}))
+    (struct-map route
+            :matrix (entry! (:matrix x) l i 1)
+            :tour (conj (:tour x) i)
+            :cost (+ (:cost x) (entry d l i)))))
 
 (defn add-next-customer
   "Perform an Ant Colony Optimization on a solutions to improve it"
@@ -300,7 +301,7 @@
   [s]
   (reduce + (map :cost s)))
 
-(defn lns
+(defn start
   "Perfoms a Large Neighborhood Search on the solution s"
   [s best-s q p fi r1 r2 r3 alpha beta dist cap dem]
   (let [removed-bank (worst-removal s q dist p) ; Remove q customer from the solution
@@ -314,28 +315,3 @@
         (if (< (objec-func new-s) (objec-func best-s))
           (recur new-s new-s q p fi r1 r2 r3 alpha beta dist cap dem)
           (recur new-s best-s q p fi r1 r2 r3 alpha beta dist cap dem))))))
-
-;; Test cases
-(def z1 (build-route [21 31 19 17 13 7 26] d))
-(def z2 (build-route [12 16 30] d))
-(def z3 (build-route [27 24] d))
-(def z4 (build-route [29 18 8 9 22 15 10 25 5 20] d))
-(def z5 (build-route [14 28 11 23 3 6] d))
-(def s [z1 z2 z3 z4 z5])
-
-(def size (:dimension vrp))
-
-(def h (build-heuristic-matrix d))
-(def t (build-pheromone-matrix size))
-(def x (empty-route d))
-
-(def r1 0.5)
-(def r2 0.3)
-(def r3 0.2)
-
-(def sol [[21 31 19 17 13 7 26] [12 1 16 30] [27 24] [29 18 8 9 22 15 10 25 5 20] [14 28 11 4 23 3 6]])
-
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
