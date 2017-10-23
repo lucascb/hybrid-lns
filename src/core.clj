@@ -15,18 +15,20 @@
 (def c (:demands vrp))
 
 ;; Test case
-(def z1 (lns/build-route [21 31 19 17 13 7 26] d))
-(def z2 (lns/build-route [12 16 30] d))
-(def z3 (lns/build-route [27 24] d))
-(def z4 (lns/build-route [29 18 8 9 22 15 10 25 5 20] d))
-(def z5 (lns/build-route [14 28 11 23 3 6] d))
-(def s [z1 z2 z3 z4 z5])
+(def z1 (lns/build-route [21 31 19 17 13 7 26]))
+(def z2 (lns/build-route [12 16 30]))
+(def z3 (lns/build-route [27 24]))
+(def z4 (lns/build-route [29 18 8 9 22 15 10 25 5 20]))
+(def z5 (lns/build-route [14 28 11 23 3 6]))
+(def s (lns/build-solution [z1 z2 z3 z4 z5]))
 
 (def size (:dimension vrp))
 
-(def h (lns/build-heuristic-matrix d))
-(def t (lns/build-pheromone-matrix size))
-(def x (lns/empty-route d))
+(def h (lns/build-heuristic-matrix))
+(def t (lns/build-pheromone-matrix (:cost s)))
+(def x (lns/empty-route))
+
+(def s1 (repeat lns/K (lns/empty-route)))
 
 (def r1 0.5)
 (def r2 0.3)

@@ -1,0 +1,12 @@
+{
+    :instance "A-n32-k5"
+    :wr-p 6
+    :aco-r1 0.5
+    :aco-r2 0.3
+    :aco-r3 0.2
+    :aco-alpha 1
+    :aco-beta 1
+    :aco-psi 1
+    :aco-e 0.15
+    :aco-niter 50
+}

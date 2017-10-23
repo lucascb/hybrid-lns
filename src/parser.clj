@@ -209,7 +209,9 @@
                 (parse-body-with-matrix header (s/split-lines file)))
           :else header)))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+(defn create-instance
+  "Parse the benchmark files and create the instance file"
+  [bench]
+  (let [input-file (str bench ".vrp")
+        output-file (str bench ".in")]
+    (spit output-file (parse-file input-file))))
