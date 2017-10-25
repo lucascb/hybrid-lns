@@ -10,7 +10,8 @@
 ;; Global constants
 ; Algorithm parameters
 (def PARAMS (read-string (slurp "hybrid_lns.params")))
-(def INSTANCE (read-string (slurp (str (:instance PARAMS) ".in"))))
+(def INSTANCE-NAME (:instance PARAMS))
+(def INSTANCE (read-string (slurp (str INSTANCE-NAME ".in"))))
 
 ; Instance variables
 (def N (:dimension INSTANCE)) ; Number of customers
@@ -332,9 +333,9 @@
   [x i]
   (let [l (last-customer x)]
     (struct Route
-            (entry! (:matrix x) l i 1) ; Route matrix
-            (conj (:tour x) i) ; Route sequence
-            (+ (:cost x) (entry DIST l i))))) ; Route cost
+            (entry! (:matrix x) l i 1.0) ; Route matrix
+            (+ (:cost x) (entry DIST l i)) ; Route cost
+            (conj (:tour x) i)))) ; Route sequence
 
 (defn add-next-customer
   "Select the next customer to be added to the route x"
@@ -344,7 +345,8 @@
         j (cond (<= r R1)
                 (exploitation cust i t-matrix h-matrix)
                 (and (< R1 r) (<= r R1-R2))
-                (biased-exploration cust i t-matrix h-matrix)
+                ;(biased-exploration cust i t-matrix h-matrix)
+                (exploitation cust i t-matrix h-matrix)
                 (and (< R1-R2 r) (<= r R1-R2-R3))
                 (random-selection cust))]
     (add-to-route x j)))
@@ -352,25 +354,30 @@
 (defn generate-solution
   "Inserts the customers into the route i based on ACO"
   [sol cust i t-matrix h-matrix]
+  (println "----------------------------------------")
+  (println "Old route:" (:tour (nth sol i)))
   (if (empty? cust)
-    sol
+    (build-solution sol)
     (let [x (nth sol i)
           new-x (add-next-customer x cust t-matrix h-matrix)]
-      (println "Route " i)
-      (println "Sol " sol)
-      (recur (conj (take i sol) new-x (drop (inc i) sol))
+      (println "Solution:" (map :tour sol))
+      (println "Route number:" i)
+      (println "New route:" (:tour new-x))
+      (println "Customers to add:" cust)
+      (println "---------------------------------------")
+      (recur (assoc sol i new-x)
              (remove #(= % (last-customer new-x)) cust)
              (mod (inc i) K)
              t-matrix
              h-matrix))))
 
-(defn solution-generation
-  ""
-  [sol iter t-matrix h-matrix]
-  (if (zero? iter)
-    sol
-    (let []
-      ())))
+(defn hybrid-lns
+  "Genereates a solutions using Hybrid Large Neighborhood Search"
+  [initial h t]
+  (spit (str INSTANCE-NAME ".out")
+        {:date (.format (java.text.SimpleDateFormat. "dd/MM/yyyy HH:mm:ss") (java.util.Date.))
+         :solution (generate-solution initial (range 1 N) 0 h t)
+         :params PARAMS}))
 
 (defn aco
   "Perform an Ant Colony Optimization and returns "

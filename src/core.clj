@@ -28,11 +28,7 @@
 (def t (lns/build-pheromone-matrix (:cost s)))
 (def x (lns/empty-route))
 
-(def s1 (repeat lns/K (lns/empty-route)))
-
-(def r1 0.5)
-(def r2 0.3)
-(def r3 0.2)
+(def s1 (lns/build-solution [(lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route)]))
 
 (defn -main
   "Test"
