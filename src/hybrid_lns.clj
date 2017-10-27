@@ -236,26 +236,36 @@
 (defn cross?
   "True if any of the solutions cross the path (i, j), nil otherwise"
   [sol i j]
-  (some #(= (entry % i j) 1.0) (map :matrix (:routes sol))))
+  (some #(= (entry % i j) 1.0) sol))
 
-(defn evaporate
+(defn release-pheromone
   "Update the pheromone matrix"
-  [sol t-matrix]
-  (let [cost (/ 1 (:cost sol))]
+  [t-matrix sol]
+  (let [cost (/ 1000 (:cost sol))
+        routes (map :matrix (:routes sol))]
     ;(println "Cost: " cost)
     (doseq [i (range N)]
       (doseq [j (range N)]
-        (let [deposit-amount (if (cross? sol i j) cost 0)
+        (let [deposit-amount (if (cross? routes i j) cost 0)
               pheromone (entry t-matrix i j)]
-          (entry! t-matrix i j (+ (* ACO-P pheromone) deposit-amount)))))
+          (entry! t-matrix i j (+ pheromone deposit-amount)))))
     t-matrix))
+
+(defn evaporate
+  "Evaporate the pheromone matrix based on the parameter P"
+  [t-matrix]
+  (doseq [i (range N)]
+    (doseq [j (range N)]
+      (let [pheromone (entry t-matrix i j)]
+        (entry! t-matrix i j (* ACO-P pheromone)))))
+  t-matrix)
 
 (defn exploitation
   "Defines the next customer based on exploitation, given a: available customers, i: last customer added, t: the pheromone trail matrix, h: heuristic matrix"
   [a i t-matrix h-matrix]
   (let [exps (for [j a] {:cust j :val (* (Math/pow (entry t-matrix i j) ACO-ALPHA)
                                          (Math/pow (entry h-matrix i j) ACO-BETA))})]
-    (println "Performing exploitation")
+    ;(println "Performing exploitation")
     (:cust (apply max-key :val exps))))
 
 (defn build-probabilities
@@ -266,9 +276,9 @@
         probs (for [j a] {:cust j :prob (/ (* (Math/pow (entry t-matrix i j) ACO-ALPHA)
                                               (Math/pow (entry h-matrix i j) ACO-BETA))
                                            x)})]
-    (println "---------- Build probabilities ----------")
-    (println probs)
-    (println "-----------------------------------------")
+    ;(println "---------- Build probabilities ----------")
+    ;(println probs)
+    ;(println "-----------------------------------------")
     probs))
 
 (defn build-roullette
@@ -276,9 +286,9 @@
   [probs r acc]
   (if (empty? probs)
     (let []
-      (println "----------- Build roullette ----------")
-      (println r)
-      (println "--------------------------------------")
+      ;(println "----------- Build roullette ----------")
+      ;(println r)
+      ;(println "--------------------------------------")
       r)
     (let [x (first probs)
           cust (:cust x)
@@ -302,13 +312,13 @@
   (let [probs (build-probabilities a i t-matrix h-matrix)
         roullette (build-roullette probs [] 0)
         p (rand)]
-    (println "Performing biased exploration")
+    ;(println "Performing biased exploration")
     (spin-roullette roullette p)))
 
 (defn random-selection
   "Defines the next customer randomly"
   [a]
-  (println "Performing random selection")
+  ;(println "Performing random selection")
   (rand-nth a))
 
 (defn last-customer
@@ -341,69 +351,67 @@
 
 (defn generate-solution
   "Inserts the customers into the route i based on ACO"
-  [sol cust i t-matrix h-matrix]
+  [routes cust i t-matrix h-matrix]
   ;(println "----------------------------------------")
   ;(println "Old route:" (:tour (nth sol i)))
   (if (empty? cust)
-    (build-solution sol)
-    (let [x (nth sol i)
+    (build-solution routes)
+    (let [x (nth routes i)
           new-x (add-next-customer x cust t-matrix h-matrix)]
       ;(println "Solution:" (map :tour sol))
       ;(println "Route number:" i)
       ;(println "New route:" (:tour new-x))
       ;(println "Customers to add:" cust)
       ;(println "---------------------------------------")
-      (recur (assoc sol i new-x)
+      (recur (assoc routes i new-x)
              (remove #(= % (last-customer new-x)) cust)
              (mod (inc i) K)
              t-matrix
              h-matrix))))
 
-(defn ant-walk
-  ""
-  [best-s i t-matrix h-matrix]
+(defn ants-walk
+  "Create a solution for each ant on the colony"
+  [best-s i t-matrix t-matrix1 h-matrix]
   (if (== i ACO-NUM-ANTS)
-    best-s
+    [best-s t-matrix1]
     (let [s (generate-solution (empty-solution) (range 1 N) 0 t-matrix h-matrix)
           best (if (and (feasible? s) (< (:cost s) (:cost best-s)))
                  s
-                 best-s)]
-      (recur best (inc i) t-matrix h-matrix))))
+                 best-s)
+          t (release-pheromone t-matrix1 s)]
+      ;(println "Ant:" i)
+      ;(println "Sol:" (map :tour (:routes s)) "Cost:" (:cost s) "Feasible:" (feasible? s))
+      ;(println "Best:" (map :tour (:routes best-s)) "Cost:" (:cost best-s))
+      (recur best (inc i) t-matrix t h-matrix))))
 
-(defn aco
-  ""
-  [old-s i t h]
-  (let [t (build-pheromone-matrix (:cost old-s))
-        h (build-heuristic-matrix)] ; Create K empty routes
-    (if (== i ACO-MAX-ITER)
-      ))
+(defn ant-colony
+  "Perform Ant Colony Optimization to construct a new solution"
+  [best-s i t-matrix h-matrix]
+  ;(println "-----------------------------------------------")
+  ;(println "Iter:" i)
+  (if (== i ACO-MAX-ITER)
+    best-s
+    (let [t-matrix1 (dge t-matrix) ; Copy the pheromone matrix
+          [best t] (ants-walk best-s 0 t-matrix t-matrix1 h-matrix)
+          new-t (evaporate t)]
+      (recur best (inc i) new-t h-matrix))))
 
 (defn lns
-  "Genereates a solutions using Hybrid Large Neighborhood Search"
-  [initial h t]
+  "Generates a solutions using Hybrid Large Neighborhood Search"
+  [t h]
   (let [now (java.util.Date.)
-        sol (generate-solution initial (range 1 N) 0 h t)]
+        sol (ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
     (spit (str INSTANCE-NAME
                "-"
                (.format (java.text.SimpleDateFormat. "ddMMyyyyHHmmss") now)
                ".out")
           {:start (.format (java.text.SimpleDateFormat. "dd-MM-yyyy HH:mm:ss") now)
-           :solution (map :tour sol)
-           :cost (total-cost sol)
+           :solution (map :tour (:routes sol))
+           :cost (:cost sol)
            :params PARAMS})))
 
 ;; Large Neighborhood Search
 (defn start
   "Perfoms a Large Neighborhood Search on the solution s"
-  [s best-s q p fi r1 r2 r3 alpha beta dist cap dem]
-  (let [removed-bank (worst-removal s q dist p) ; Remove q customer from the solution
-        new-s (regret-2 removed-bank s dist cap dem) ; Reinserts these customers
-        size (ncols (:matrix (first s)))]
-    (if (< (total-cost new-s) (total-cost s))
-      (if (< (total-cost new-s) (total-cost best-s))
-        (recur new-s new-s q p fi r1 r2 r3 alpha beta dist cap dem)
-        (recur new-s best-s q p fi r1 r2 r3 alpha beta dist cap dem))
-      (let [new-s (aco best-s (range 1 size) dist fi r1 r2 r3 alpha beta)]
-        (if (< (total-cost new-s) (total-cost best-s))
-          (recur new-s new-s q p fi r1 r2 r3 alpha beta dist cap dem)
-          (recur new-s best-s q p fi r1 r2 r3 alpha beta dist cap dem))))))
+  []
+  ())

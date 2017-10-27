@@ -1,6 +1,7 @@
 (ns core
   (:require [parser :as p]
             [hybrid-lns :as lns])
+  (:use [uncomplicate.neanderthal core native])
   (:gen-class))
 
 ;; Problem specs

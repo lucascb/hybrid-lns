@@ -9,5 +9,5 @@
     :aco-psi 1
     :aco-p 0.15
     :aco-iter 50
-    :aco-ants 10
+    :aco-ants 20
 }
