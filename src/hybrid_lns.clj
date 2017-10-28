@@ -64,21 +64,33 @@
               (dot (row x i)
                    (row DIST i)))))
 
-(defn build-route
-  "Build the route and calculate its cost"
-  [r]
-  (let [path (map vector r (rest r))
-        x (dge N N)]
-    (entry! x 0 (first r) 1)
-    (doseq [[i, j] path]
-      (entry! x i j 1))
-    (entry! x (last r) 0 1)
-    (struct Route x (route-cost x) r)))
-
 (defn empty-route
   "Returns an empty route"
   []
   (struct Route (dge N N) 0 []))
+
+(defn build-route
+  "Build the route and calculate its cost"
+  [r]
+  (if (empty? r)
+    (empty-route)
+    (let [path (map vector r (rest r))
+          x (dge N N)]
+      (entry! x 0 (first r) 1)
+      (doseq [[i, j] path]
+        (entry! x i j 1))
+      (entry! x (last r) 0 1)
+      (struct Route x (route-cost x) r))))
+
+(defn copy-route
+  "Create a new route x' based on a route x"
+  [x]
+  (struct Route (dge (:matrix x)) (:cost x) (:tour x)))
+
+(defn copy-solution
+  "Create a new solution s' based on a solution s"
+  [s]
+  (struct Solution (vec (for [x (:routes s)] (copy-route x))) (:cost s)))
 
 (defn empty-solution
   "Returns an empty solution"
@@ -117,36 +129,41 @@
                d q c)))))
 
 ;; Removal heuristic
-(defn- remove-customer
+(defn remove-customer
   "Removes the customer i from the route x"
   [x i]
   (let [nx (remove #(= % i) (:tour x))]
     (build-route nx)))
 
-(defn- routes-without-customers
+(defn routes-without-customers
   "Generates routes without each customer and calculates its cost"
   [s]
-  (flatten (for [x s]
-             (for [i (:tour x)]
-               (let [r (remove-customer x i)]
-                 {:customer i
+  (flatten (for [i (range (count s)) :let [x (nth s i)]]
+             (for [c (:tour x)]
+               (let [r (remove-customer x c)]
+                 {:route-id i
+                  :customer c
                   :delta-cost (- (:cost x) (:cost r))
-                  :route r
-                  :old-tour (:tour x)})))))
+                  :new-route r})))))
 
-(defn- update-solution
+(defn update-solution
   "Update the solution s to remove the customer chosen in worst-removal"
-  [s rc]
-  (conj (remove #(= (:tour %) (:old-tour rc)) s) (:route rc)))
+  [s r]
+  (assoc s (:route-id r) (:new-route r)))
 
 (defn remove-randomly
   "Removes randomly q worst costumers in the solution s to the removed bank rb"
   [s rb q]
+  (println "Solution:" (map :tour s))
+  (println "Removed bank:" rb)
   (if (= q 0) ; Returns the new solution (s) alongside with the
     [s rb]    ; customers removed in the removed bank (rb)
     (let [l (sort-by :delta-cost > (routes-without-customers s))
           y (rand)
-          c (nth l (int (* (Math/pow y WR-P) (count l))))] ; Chosen customer to remove
+          i (int (* (Math/pow y WR-P) (count l)))
+          _ (println "i:" i)
+          c (nth l i)
+          _ (println "c:" (:customer c))] ; Chosen customer to remove
       (recur (update-solution s c)
              (conj rb (:customer c))
              (dec q)))))
@@ -201,7 +218,7 @@
     ;(println (keys nx))
     (cons nx (remove #(= (:tour %) old-x) s))))
 
-(defn regret-2
+(defn regret-2-insertion
   "Constructive heuristic to reinsert the customers rc removed from Worst Removal into the solution s"
   [rc s]
   (if (empty? rc) s
@@ -398,20 +415,25 @@
 
 (defn lns
   "Generates a solutions using Hybrid Large Neighborhood Search"
-  [t h]
+  [s t h]
   (let [now (java.util.Date.)
-        sol (ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
+        ;sol (ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)
+        sol (build-solution (start s))]
     (spit (str INSTANCE-NAME
                "-"
                (.format (java.text.SimpleDateFormat. "ddMMyyyyHHmmss") now)
                ".out")
           {:start (.format (java.text.SimpleDateFormat. "dd-MM-yyyy HH:mm:ss") now)
-           :solution (map :tour (:routes sol))
-           :cost (:cost sol)
-           :params PARAMS})))
+           :initial-solution (map :tour (:routes s))
+           :params PARAMS
+           :solution-found (map :tour (:routes sol))
+           :cost (:cost sol)})))
 
 ;; Large Neighborhood Search
 (defn start
   "Perfoms a Large Neighborhood Search on the solution s"
-  []
-  ())
+  [s]
+  (let [s1 (copy-solution s)
+        [s2 rb] (worst-removal (:routes s1))
+        s3 (regret-2-insertion rb s2)]
+    s3))

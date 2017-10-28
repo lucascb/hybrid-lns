@@ -1,5 +1,6 @@
 {
     :instance "A-n32-k5"
+    :max-iter 50
     :wr-p 6
     :aco-r1 0.5
     :aco-r2 0.3
