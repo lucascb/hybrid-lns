@@ -2,8 +2,19 @@
   (:require [parser :as p])
   (:use [uncomplicate.neanderthal core native]))
 
-;; Constants
-(def G 6.672)
+;; Global variables
+(def PARAMS (read-string (slurp "gels.params")))
+(def INSTANCE (read-string (slurp (str (:instance PARAMS) ".in"))))
+
+; Algorithm constants
+(def G (:g PARAMS))
+(def MAX-ITER (:max-iter PARAMS))
+(def INITIAL-VELOCITY (:initial-velocity PARAMS))
+(def MAX-VELOCITY (:max-velocity PARAMS))
+
+; Problem specs
+(def N (:dimension INSTANCE))
+(def DIST (p/to-neanderthal-matrix (:distances INSTANCE)))
 
 ;; Utils
 (defn convert-matrix
@@ -16,11 +27,20 @@
   [d v]
   (double (/ d v)))
 
+(defn create-velocity-matrix
+  "Create the velocity matrix"
+  []
+  (let [vel (dge N N)]
+    (doseq [i (range N)]
+      (doseq [j (range N)]
+        (entry! vel i j INITIAL-VELOCITY)))
+    vel))
+
 (defn create-time-matrix
   "Create time matrix based on distance and velocity matrixes"
   [d s n]
-  (convert-matrix n n 
-   (for [i (range n)] 
+  (convert-matrix n n
+   (for [i (range n)]
      (for [j (range n)]
        (mass (d i j) (s i j))))))
 
@@ -30,9 +50,6 @@
   (double (/ (* G (- cu ca)) (* r r))))
 
 ;; Definitions
-
-; Benchmark parsed
-(def bench (p/parse-file "A-n32-k5.vrp"))
 ; Distance matrix
 (def dists (convert-matrix (:distances bench)))
 (def size (:dimension bench))
@@ -40,10 +57,6 @@
 (def vel (dge size size 100.0))
 ; Time matrix
 (def time (create-time-matrix dists vel size))
-; Maximum velocity
-(def max-vel 100)
-; Maximum number of iterations
-(def max-iter 100)
 
 (defn gels
   "Implementation of Gravitational Emulation Local Search"
