@@ -212,6 +212,6 @@
 (defn create-instance
   "Parse the benchmark files and create the instance file"
   [bench]
-  (let [input-file (str bench ".vrp")
-        output-file (str bench ".in")]
+  (let [input-file (str "benchs/" bench ".vrp")
+        output-file (str "benchs/" bench ".in")]
     (spit output-file (parse-file input-file))))
