@@ -36,9 +36,9 @@
   [files]
   (map #(read-string (slurp %)) files))
 
-(defn -main
+(defn plot-stats
   "Plot statistics"
-  [& args]
+  []
   (let [dir (clojure.java.io/file "out/")
         files (rest (file-seq dir))
         datas (read-files files)]
@@ -49,10 +49,14 @@
                      (map :total-cost datas))
           "./stats/costs.png")))
 
-;(defn -main
-;  "Run algorithm"
-;  [& args]
-;  (let [h (lns/build-heuristic-matrix)
-;        t (lns/build-pheromone-matrix 1000.0)
-;        initial (lns/ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
-;    (lns/start initial 0 h)))
+(defn run-hybrid-lns
+  "Run algorithm"
+  []
+  (let [h (lns/build-heuristic-matrix)
+        t (lns/build-pheromone-matrix 1000.0)
+        initial (lns/ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
+    (lns/start initial 0 h)))
+
+(defn -main
+  [& args]
+  (run-hybrid-lns))

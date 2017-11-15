@@ -27,6 +27,8 @@
 (def WR-P (:wr-p PARAMS))
 (def WR-Q (+ (rand-int (min 96 (* 0.4 (- N 4)))) 4))
 
+(println "Using Q = " WR-Q)
+
 ; ACO parameters
 (def ACO-R1 (:aco-r1 PARAMS))
 (def ACO-R2 (:aco-r2 PARAMS))
@@ -416,13 +418,15 @@
     (let [s1 (copy-solution sbest)
           [s2 rb] (worst-removal (:routes s1))
           s3 (regret-2-insertion rb (:routes s2))
-          new-best (if (and (feasible? s3) (< (:cost s3) (:cost sbest)))
-                     s3
+          [new-best next-i] (if (and (feasible? s3) (< (:cost s3) (:cost sbest)))
+                     [s3 -1]
                      (let [t (build-pheromone-matrix (:cost sbest))
                            s4 (ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
-                       (if (< (:cost s4) (:cost sbest)) s4 sbest)))]
+                       (if (< (:cost s4) (:cost sbest))
+                         [s4 -1]
+                         [sbest i])))]
       (println "Iteration" i "Best" (map :tour (:routes sbest)) "Cost" (:cost sbest))
-      (recur new-best (inc i) h))))
+      (recur new-best (inc next-i) h))))
 
 (defn lns
   "Generates a solutions using Hybrid Large Neighborhood Search"
@@ -436,11 +440,12 @@
         sol (start s 0 h)
         end (System/nanoTime)
         date-end (java.util.Date.)]
-    (spit (str "out/"
-               INSTANCE-NAME
-               "-"
-               (.format fmt-file date-start)
-               ".out")
+    (spit (str
+           "./out/"
+           INSTANCE-NAME
+           "-"
+           (.format fmt-file date-start)
+           ".out")
           {:start (.format fmt-date date-start)
            :initial-solution (map :tour (:routes s))
            :initial-cost (:cost s)
