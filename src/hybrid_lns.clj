@@ -1,55 +1,57 @@
 (ns hybrid-lns
-  (:require [parser :as p])
+  (:require [parser :as p]
+            [clojure.data.json :as json])
   (:use [uncomplicate.neanderthal core native]))
+
+;; Hybrid large neighbourhood search algorithm for capacitated vehicle routing problem
+;; Author: Akpinar [2016]
 
 ;; Data structures
 ; A route consists in its matrix representation
 (defstruct Route :matrix :cost :tour)
 (defstruct Solution :routes :cost)
 
-;; Global constants
-; Algorithm parameters
-(def PARAMS (read-string (slurp "hybrid_lns.params")))
-(def INSTANCE-NAME (:instance PARAMS))
-(def INSTANCE (read-string (slurp (str INSTANCE-NAME ".in"))))
+;; Set global constants
+(defn set-instance
+  "Set the instance to be solved"
+  [instance]
+  (def INSTANCE instance)
+  (def N (:dimension instance)) ; Number of customers
+  (def K (:no-of-trucks (:comment instance))) ; Number of vehicles available
+  (def Q (:capacity instance)) ; Max capacity of a vehicle
+  (def DIST (p/to-neanderthal-matrix (:distances instance))) ; Distance matrix
+  (def DEMS (:demands INSTANCE)) ; Demand of each customer
+  (def NUM-EVALUATIONS (atom 0)))
 
-; Instance variables
-(def N (:dimension INSTANCE)) ; Number of customers
-(def K (:no-of-trucks (:comment INSTANCE))) ; Number of vehicles available
-(def Q (:capacity INSTANCE)) ; Maximum capacity of a vehicle
-(def DIST (p/to-neanderthal-matrix (:distances INSTANCE))) ; Distance matrix
-(def DEMS (:demands INSTANCE)) ; Demand of each customer
-
-; LNS parameter
-(def LNS-MAX-ITER (:max-iter PARAMS))
-
-; Worst removal parameters
-(def WR-P (:wr-p PARAMS))
-(def WR-Q (+ (rand-int (min 96 (* 0.4 (- N 4)))) 4))
-
-(println "Using Q = " WR-Q)
-
-; ACO parameters
-(def ACO-R1 (:aco-r1 PARAMS))
-(def ACO-R2 (:aco-r2 PARAMS))
-(def ACO-R3 (:aco-r3 PARAMS))
-(def ACO-R1-R2 (+ ACO-R1 ACO-R2))
-(def ACO-ALPHA (:aco-alpha PARAMS))
-(def ACO-BETA (:aco-beta PARAMS))
-(def ACO-PSI (:aco-psi PARAMS))
-(def ACO-P (- 1 (:aco-p PARAMS))) ; Evaporation coefficient
-(def ACO-MAX-ITER (:aco-iter PARAMS))
-(def ACO-NUM-ANTS (:aco-ants PARAMS))
+(defn set-parameters
+  "Set the algorithm parameters"
+  [params]
+  (def PARAMS params)
+  (def LNS-MAX-ITER (:max-iter params))
+  ; Worst removal parameters
+  (def WR-P (:wr-p params))
+  (def WR-Q (+ (rand-int (min 96 (* 0.4 (- N 4)))) 4))
+  (println "Using Q =" WR-Q)
+  ; ACO parameters
+  (def ACO-R1 (:aco-r1 params))
+  (def ACO-R2 (:aco-r2 params))
+  (def ACO-R3 (:aco-r3 params))
+  (def ACO-R1-R2 (+ ACO-R1 ACO-R2))
+  (def ACO-ALPHA (:aco-alpha params))
+  (def ACO-BETA (:aco-beta params))
+  (def ACO-PSI (:aco-psi params))
+  (def ACO-P (- 1 (:aco-p params))) ; Evaporation coefficient
+  (def ACO-MAX-ITER (:aco-iter params))
+  (def ACO-NUM-ANTS (:aco-ants params)))
 
 ;; Solution utils
 (defn feasible?
   "Returns if a solution is feasible or not"
   [sol]
   (let [routes (:routes sol)]
-    (and (<= (count routes) K) ; There is at most k routes
-         (every? true?           ; The total demand of each route does not exceed
-                 (for [r routes] ; the vehicle capacity
-                   (<= (reduce + (map #(nth DEMS %) (:tour r))) Q))))))
+    (every? true?           ; The total demand of each route does not exceed
+            (for [r routes] ; the vehicle capacity
+              (<= (reduce + (map #(nth DEMS %) (:tour r))) Q)))))
 
 (defn total-cost
   "Returns the cost of a solution"
@@ -65,6 +67,7 @@
 (defn route-cost
   "Returns the cost of the route x"
   [x]
+  (swap! NUM-EVALUATIONS inc)
   (reduce + (for [i (range (mrows x))]
               (dot (row x i)
                    (row DIST i)))))
@@ -117,21 +120,82 @@
         chosen-cust
         (recur cust)))))
 
-;; Generates the initial solution
-(defn generate-route
-  "Genereates a route x ramdomly from a list of available customers until the capacity is constrained"
-  [cust route dem d q c]
-  (if (empty? cust)
-    (build-route route d)
-    (let [chosen-cust (rand-nth cust)
-          cust-dem (entry c chosen-cust)
-          new-dem (+ dem cust-dem)]
-      (if (> new-dem q)
-        (build-route route d)
-        (recur (remove #(= % chosen-cust) cust)
-               (conj route chosen-cust)
-               new-dem
-               d q c)))))
+;; Generate initial solution using Savings Heuristic
+(defn merge-routes
+  "Merge two routes on vertices i,j or return nil if the two routes cant be merged"
+  [route1 route2 i j]
+  (let [a (:tour route1)
+        b (:tour route2)
+        la (:load route1)
+        lb (:load route2)]
+    (cond (and (= i (last a)) (= j (first b)))
+          {:tour (concat a b) :load (+ la lb)}
+          (and (= i (first a)) (= j (first b)))
+          {:tour (concat (reverse b) a) :load (+ la lb)}
+          (and (= i (last a)) (= j (last b)))
+          {:tour (concat a (reverse b)) :load (+ la lb)}
+          (and (= i (first a) (= j (last b))))
+          {:tour (concat b a) :load (+ la lb)})))
+
+(defn enough-capacity?
+  "Check whether the merge violates the capacity constrain of the vehicle"
+  [a b]
+  (<= (+ (:load a) (:load b)) Q))
+
+(defn customer-route
+  "Return the route which serves the customer i"
+  [routes i]
+  (let [r (first routes)
+        t (:tour r)]
+    (if (some #(= % i) t)
+      r
+      (recur (rest routes) i))))
+
+(defn remove-routes
+  "Remove the routes r1 and r2 from the list of routes"
+  [routes r1 r2]
+  (remove #(= % r2)
+          (remove #(= % r1) routes)))
+
+(defn calculate-savings
+  "Calculate the Savings value between each pair of nodes"
+  []
+  (flatten
+   (for [i (range 1 N)]
+    (for [j (range 1 N) :when (< i j)]
+      {:from i :to j :saving (- (+ (entry DIST i 0)
+                                   (entry DIST 0 j))
+                                (entry DIST i j))}))))
+
+(defn generate-initial-solution
+  ""
+  [savings routes]
+  ;(println "------ ROUTES ------")
+  ;(println routes)
+  (if (empty? savings)
+    routes
+    (let [saving (first savings)
+          i (:from saving)
+          j (:to saving)
+          ri (customer-route routes i)
+          rj (customer-route routes j)
+          merge (merge-routes ri rj i j)]
+      ;(println "Merging" ri "+" rj "=" merge)
+      (if (and (not= ri rj) (enough-capacity? ri rj) merge)
+        (recur (rest savings)
+               (conj (remove-routes routes ri rj) merge))
+        (recur (rest savings)
+               routes)))))
+
+(defn savings-heuristic
+  ""
+  []
+  (let [savings (sort-by :saving > (calculate-savings))
+        routes (for [i (range 1 N)] {:tour [i] :load (nth DEMS i)})]
+    ;(println "****** SAVINGS ******")
+    ;(println savings)
+    (build-solution
+     (map build-route (map :tour (generate-initial-solution savings routes))))))
 
 ;; Removal heuristic
 (defn remove-customer
@@ -166,7 +230,7 @@
     (let [l (sort-by :delta-cost > (routes-without-customers s))
           y (rand)
           i (int (* (Math/pow y WR-P) (count l)))
-          ;_ (println "i:" i)
+          ;_ (println "i:" i "l:" l)
           c (nth l i)]
           ;_ (println "c:" (:customer c))] ; Chosen customer to remove
       (recur (update-solution s c)
@@ -324,10 +388,12 @@
 (defn spin-roullette
   "Spin the roullette and choose the next customer"
   [r drawn-num]
-  (let [cur (first r)]
-    (if (> (:val cur) drawn-num)
-      (:cust cur)
-      (recur (rest r) drawn-num))))
+  (if (= (count r) 1)
+    (:cust (first r))
+    (let [cur (first r)]
+      (if (> (:val cur) drawn-num)
+        (:cust cur)
+        (recur (rest r) drawn-num)))))
 
 (defn biased-exploration
   "Defines the next customer based on biased exploration, given a: available customers, "
@@ -429,30 +495,31 @@
       (recur new-best (inc next-i) h))))
 
 (defn lns
-  "Generates a solutions using Hybrid Large Neighborhood Search"
-  [s]
+  "Search for an optimal solution using Hybrid Large Neighborhood Search"
+  []
+  ;(set-instance instance)
+  ;(set-parameters params)
   (let [fmt-file (java.text.SimpleDateFormat. "ddMMyy-HHmmss")
         fmt-date (java.text.SimpleDateFormat. "dd-MM-yyyy HH:mm:ss")
         date-start (java.util.Date.)
         init (System/nanoTime)
-        ;sol (ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)
+        s (savings-heuristic)
+        ;_ (println (map :tour (:routes s)))
         h (build-heuristic-matrix)
         sol (start s 0 h)
         end (System/nanoTime)
         date-end (java.util.Date.)]
-    (spit (str
-           "./out/"
-           INSTANCE-NAME
-           "-"
-           (.format fmt-file date-start)
-           ".out")
-          {:start (.format fmt-date date-start)
-           :initial-solution (map :tour (:routes s))
-           :initial-cost (:cost s)
-           :params PARAMS
-           :end (.format fmt-date date-end)
-           :solution-found (map :tour (:routes sol))
-           :routes-cost (map :cost (:routes sol))
-           :total-cost (:cost sol)
-           :elapsed-time (/ (- end init) 1e9)})))
+    (spit (str "./out/" (:name INSTANCE) "-" (.format fmt-file date-start) ".out")
+          (json/write-str {:instance (:name INSTANCE)
+                           :start (.format fmt-date date-start)
+                           :initial-solution (map :tour (:routes s))
+                           :initial-cost (:cost s)
+                           :params PARAMS
+                           :end (.format fmt-date date-end)
+                           :solution-found (map :tour (:routes sol))
+                           :routes-cost (map :cost (:routes sol))
+                           :total-cost (:cost sol)
+                           :elapsed-time (/ (- end init) 1e9)
+                           :num-evaluations @NUM-EVALUATIONS
+                           :optimal (:optimal-value (:comment INSTANCE))}))))
 

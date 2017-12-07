@@ -1,7 +1,6 @@
 (ns core
   (:require [parser :as p]
             [hybrid-lns :as lns])
-  (:use [incanter core charts])
   (:gen-class))
 
 ;; Problem specs
@@ -31,32 +30,37 @@
 
 ;(def s1 (lns/build-solution [(lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route)]))
 
+(defn create-initial-solution
+  "Defines an initial solution based using ACO"
+  []
+  (let [h (lns/build-heuristic-matrix)
+        t (lns/build-pheromone-matrix 1000.0)]
+    (lns/ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)))
+
 (defn read-files
   "Read all output files and return its data"
   [files]
   (map #(read-string (slurp %)) files))
 
-(defn plot-stats
-  "Plot statistics"
+(defn parse-files
+  "Parse all files"
   []
-  (let [dir (clojure.java.io/file "out/")
-        files (rest (file-seq dir))
-        datas (read-files files)]
-    (save (bar-chart (map :start datas)
-                     (map :elapsed-time datas))
-          "./stats/times.png")
-    (save (bar-chart (map :start datas)
-                     (map :total-cost datas))
-          "./stats/costs.png")))
+  (let [files (rest (file-seq (clojure.java.io/file "benchs/")))]
+    (doseq [file files]
+      (p/create-instance (str file)))))
 
-(defn run-hybrid-lns
-  "Run algorithm"
+(defn run-benchmark
+  "Run the algorithm on each instance of the benchmark"
   []
-  (let [h (lns/build-heuristic-matrix)
-        t (lns/build-pheromone-matrix 1000.0)
-        initial (lns/ant-colony {:routes [] :cost Integer/MAX_VALUE} 0 t h)]
-    (lns/start initial 0 h)))
+  (let [files (rest (file-seq (clojure.java.io/file "in/")))
+        instances (read-files files)
+        params (read-string (slurp "hybrid_lns.params"))]
+    (doseq [instance instances]
+      (println "----------- INSTANCE" (:name instance) "-----------")
+      (lns/set-instance instance)
+      (lns/set-parameters params)
+      (lns/lns))))
 
 (defn -main
   [& args]
-  (run-hybrid-lns))
+  (run-benchmark))
