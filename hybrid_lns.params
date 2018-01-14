@@ -1,13 +1,14 @@
 {
-    :max-iter 50
-    :wr-p 6
-    :aco-r1 0.5
-    :aco-r2 0.3
-    :aco-r3 0.2
-    :aco-alpha 1
-    :aco-beta 1
-    :aco-psi 1
-    :aco-p 0.15
-    :aco-iter 50
-    :aco-ants 20
+    "max-iter": 50,
+    "seed": 1,
+    "wr-p": 6,
+    "aco-r1": 0.5,
+    "aco-r2": 0.3,
+    "aco-r3": 0.2,
+    "aco-alpha": 1,
+    "aco-beta": 1,
+    "aco-psi": 1,
+    "aco-p": 0.15,
+    "aco-iter": 50,
+    "aco-ants": 20
 }

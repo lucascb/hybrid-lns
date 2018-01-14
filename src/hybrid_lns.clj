@@ -1,10 +1,20 @@
 (ns hybrid-lns
-  (:require [parser :as p]
-            [clojure.data.json :as json])
-  (:use [uncomplicate.neanderthal core native]))
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io])
+  (:refer-clojure :exclude [rand rand-int rand-nth])
+  (:use [uncomplicate.neanderthal core native]
+        [random-seed.core]))
 
 ;; Hybrid large neighbourhood search algorithm for capacitated vehicle routing problem
 ;; Author: Akpinar [2016]
+
+;; Neanderthal conversions
+(defn to-neanderthal-matrix
+  "Converts a Clojure list of lists to a neanderthal matrix"
+  [matrix]
+  (let [n (count matrix)
+        values (flatten matrix)]
+    (dge n n values {:order :row})))
 
 ;; Data structures
 ; A route consists in its matrix representation
@@ -19,30 +29,31 @@
   (def N (:dimension instance)) ; Number of customers
   (def K (:no-of-trucks (:comment instance))) ; Number of vehicles available
   (def Q (:capacity instance)) ; Max capacity of a vehicle
-  (def DIST (p/to-neanderthal-matrix (:distances instance))) ; Distance matrix
+  (def DIST (to-neanderthal-matrix (:distances instance))) ; Distance matrix
   (def DEMS (:demands INSTANCE)) ; Demand of each customer
-  (def NUM-EVALUATIONS (atom 0)))
+  (def NUM-EVALUATIONS (atom 0))
+  (def WR-Q (+ (rand-int (min 96 (* 0.4 (- N 4)))) 4)))
 
 (defn set-parameters
   "Set the algorithm parameters"
   [params]
   (def PARAMS params)
-  (def LNS-MAX-ITER (:max-iter params))
+  (println "Maximum number of tries =" @(def LNS-MAX-ITER (:max-iter params)))
+  (println "Seed =" @(def SEED (:seed params)))
   ; Worst removal parameters
-  (def WR-P (:wr-p params))
-  (def WR-Q (+ (rand-int (min 96 (* 0.4 (- N 4)))) 4))
-  (println "Using Q =" WR-Q)
+  (println "Worst-removal P =" @(def WR-P (:wr-p params)))
   ; ACO parameters
-  (def ACO-R1 (:aco-r1 params))
-  (def ACO-R2 (:aco-r2 params))
-  (def ACO-R3 (:aco-r3 params))
+  (println "r1 ACO =" @(def ACO-R1 (:aco-r1 params)))
+  (println "r2 ACO =" @(def ACO-R2 (:aco-r2 params)))
+  (println "r3 ACO =" @(def ACO-R3 (:aco-r3 params)))
   (def ACO-R1-R2 (+ ACO-R1 ACO-R2))
-  (def ACO-ALPHA (:aco-alpha params))
-  (def ACO-BETA (:aco-beta params))
-  (def ACO-PSI (:aco-psi params))
-  (def ACO-P (- 1 (:aco-p params))) ; Evaporation coefficient
-  (def ACO-MAX-ITER (:aco-iter params))
-  (def ACO-NUM-ANTS (:aco-ants params)))
+  (println "alpha ACO =" @(def ACO-ALPHA (:aco-alpha params)))
+  (println "beta ACO =" @(def ACO-BETA (:aco-beta params)))
+  (println "psi ACO =" @(def ACO-PSI (:aco-psi params)))
+  (println "P ACO =" @(def ACO-P (- 1 (:aco-p params)))) ; Evaporation coefficient
+  (println "Max iterations ACO =" @(def ACO-MAX-ITER (:aco-iter params)))
+  (println "Number of ants ACO =" @(def ACO-NUM-ANTS (:aco-ants params)))
+  (set-random-seed! SEED))
 
 ;; Solution utils
 (defn feasible?
@@ -504,17 +515,18 @@
         date-start (java.util.Date.)
         init (System/nanoTime)
         s (savings-heuristic)
-        ;_ (println (map :tour (:routes s)))
         h (build-heuristic-matrix)
         sol (start s 0 h)
         end (System/nanoTime)
-        date-end (java.util.Date.)]
-    (spit (str "./out/" (:name INSTANCE) "-" (.format fmt-file date-start) ".out")
+        date-end (java.util.Date.)
+        file-output-name (str "./out/" (:name INSTANCE) "-" (.format fmt-file date-start) ".out")]
+    (io/make-parents file-output-name)
+    (spit file-output-name
           (json/write-str {:instance (:name INSTANCE)
                            :start (.format fmt-date date-start)
                            :initial-solution (map :tour (:routes s))
                            :initial-cost (:cost s)
-                           :params PARAMS
+                           :params (assoc PARAMS :wr-q WR-Q)
                            :end (.format fmt-date date-end)
                            :solution-found (map :tour (:routes sol))
                            :routes-cost (map :cost (:routes sol))

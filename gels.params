@@ -1,8 +1,0 @@
-{
-    :instance "A-n32-k5"
-    :max-iter 100
-    :initial-velocity 100
-    :max-velocity 100
-    :radius 10
-    :g 6.672
-}

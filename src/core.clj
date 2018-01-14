@@ -1,34 +1,8 @@
 (ns core
-  (:require [parser :as p]
-            [hybrid-lns :as lns])
+  (:require [hybrid-lns :as lns]
+            [clojure.java.io :as io]
+            [clojure.data.json :as json])
   (:gen-class))
-
-;; Problem specs
-;; x -> route matrix
-;; d -> distance matrix
-;; q -> max capacity of a route
-;; c -> demands of each customer
-;(def vrp (p/parse-file "A-n32-k5.vrp"))
-;(def customers (range 2 (:dimension vrp)))
-;(def d (p/to-neanderthal-matrix (:distances vrp)))
-;(def q (:capacity vrp))
-;(def c (:demands vrp))
-
-;; Test case
-;(def z1 (lns/build-route [21 31 19 17 13 7 26]))
-;(def z2 (lns/build-route [12 16 30]))
-;(def z3 (lns/build-route [27 24]))
-;(def z4 (lns/build-route [29 18 8 9 22 15 10 25 5 20]))
-;(def z5 (lns/build-route [14 28 11 23 3 6]))
-;(def s (lns/build-solution [z1 z2 z3 z4 z5]))
-
-;(def size (:dimension vrp))
-
-;(def h (lns/build-heuristic-matrix))
-;(def t (lns/build-pheromone-matrix (:cost s)))
-;(def x (lns/empty-route))
-
-;(def s1 (lns/build-solution [(lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route) (lns/empty-route)]))
 
 (defn create-initial-solution
   "Defines an initial solution based using ACO"
@@ -40,27 +14,26 @@
 (defn read-files
   "Read all output files and return its data"
   [files]
-  (map #(read-string (slurp %)) files))
-
-(defn parse-files
-  "Parse all files"
-  []
-  (let [files (rest (file-seq (clojure.java.io/file "benchs/")))]
-    (doseq [file files]
-      (p/create-instance (str file)))))
+  (map #(json/read-str (slurp %) :key-fn keyword) files))
 
 (defn run-benchmark
-  "Run the algorithm on each instance of the benchmark"
-  []
-  (let [files (rest (file-seq (clojure.java.io/file "in/")))
-        instances (read-files files)
-        params (read-string (slurp "hybrid_lns.params"))]
+  "Run the algorithm on each instance files"
+  [paramfile file-dir]
+  (let [files (file-seq (io/file file-dir))
+        instances (read-files (filter #(.endsWith (str %) ".in") files))
+        params (json/read-str (slurp paramfile) :key-fn keyword)]
+    (println "------------- USING PARAMETERS FROM" paramfile " ----------------")
+    (lns/set-parameters params)
     (doseq [instance instances]
       (println "----------- INSTANCE" (:name instance) "-----------")
       (lns/set-instance instance)
-      (lns/set-parameters params)
       (lns/lns))))
 
 (defn -main
+  "Perfom the algorithm on the instance file or on each instance files of the specified folder"
   [& args]
-  (run-benchmark))
+  (if (= (count args) 2)
+    (let [params (first args)
+          files (second args)]
+      (run-benchmark params files))
+    (println "Wrong number of arguments")))
