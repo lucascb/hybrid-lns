@@ -6,8 +6,8 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [uncomplicate/neanderthal "0.11.0"]
                  [random-seed "1.0.0"]
-                 [org.clojure/data.json "0.2.6"]]
-  :main ^:skip-aot core
+                 [cheshire "5.8.0"]]
+  :main ^:skip-aot hybrid-lns.core
   :target-path "target/%s"
   :jvm-opts ["-Xmx1G"]
   :profiles {:uberjar {:aot :all}})
