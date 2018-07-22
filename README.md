@@ -1,7 +1,7 @@
 # Hybrid-LNS
 
-This repository contains the implementation written in Clojure of the method **Hybrid Large Neighborhood Search** proposed by [Akpinar (2016)](https://dx.doi.org/10.1016/j.eswa.2016.05.023) to solve CVRP instances. 
-It is the product of the Term Paper of my Computer Science undergraduation in Federal University of Uberlândia.
+This repository contains the implementation written in Clojure of the method **Hybrid Large Neighborhood Search** proposed by [Akpinar (2016)](https://dx.doi.org/10.1016/j.eswa.2016.05.023) to solve Capacitated Vehicle Routing (CVRP) instances. 
+It is the product of the [Term Paper (in Portuguese)](https://gist.github.com/lucascb/f9fef4e3e70606592b236361dedeba24) of my Computer Science undergraduation in Federal University of Uberlândia.
 The algorithm accepts instance files in JSON format and produces a JSON result file with the solution found. You can check examples of CVRP instances on _resources_ directory in this repository or check [CVRPlib-Parser](https://github.com/lucascb/cvrplib_parser) repository.
 
 ## Requirements
